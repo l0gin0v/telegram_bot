@@ -2,6 +2,6 @@ package src.com.utils.interfaces;
 
 public interface IDialogLogic {
     IQuestion getQA();
-    boolean checkAnswer(int answer);
+    boolean checkAnswer(String answer);
     String getHelp();
 }
