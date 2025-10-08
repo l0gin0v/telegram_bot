@@ -10,7 +10,7 @@ public class DialogLogic implements IDialogLogic {
     IQuestionRepository questionRepository;
     IQuestion currentQA;
 
-    DialogLogic (IQuestionRepository questionRepository) {
+    public DialogLogic(IQuestionRepository questionRepository) {
         this.questionRepository = questionRepository;
     }
 
@@ -19,11 +19,13 @@ public class DialogLogic implements IDialogLogic {
     }
 
     public boolean checkAnswer(String answer) {
+        if (currentQA == null) {
+            return false;
+        }
         return (Objects.equals(currentQA.getAnswer(), answer));
     }
 
     public String getHelp() {
-        return "Это бот для курса ООП - его я вам дам\n" +
-                "А это справочка для бота - её я вам не дам...";
+        return "Это бот для курса ООП - его я вам дам\n" + "А это справочка для бота - её я вам не дам...";
     }
 }
