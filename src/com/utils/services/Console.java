@@ -1,8 +1,8 @@
-package src.com.utils.services;
+package com.utils.services;
 
-import src.com.utils.interfaces.IConsole;
-import src.com.utils.interfaces.IDialogLogic;
-import src.com.utils.interfaces.IQuestion;
+import com.utils.interfaces.IConsole;
+import com.utils.interfaces.IDialogLogic;
+import com.utils.interfaces.IQuestion;
 import java.util.Scanner;
 
 public class Console implements IConsole {

@@ -1,8 +1,9 @@
-package src.com.utils.services;
+package com.utils.services;
 
-import src.com.utils.interfaces.IQuestionRepository;
-import src.com.utils.interfaces.IQuestion;
-import src.com.utils.models.Question;
+import com.utils.models.Question;
+import com.utils.interfaces.IQuestionRepository;
+import com.utils.interfaces.IQuestion;
+import com.utils.models.Question;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +24,6 @@ public class QuestionRepository implements IQuestionRepository {
         listOfQuestion.add(new Question(4, "14 + 7", "21"));
     }
 
-    @Override
     public Question getRandomQuestion() {
         Random random = new Random();
         int randomIndex = random.nextInt(listOfQuestion.size());

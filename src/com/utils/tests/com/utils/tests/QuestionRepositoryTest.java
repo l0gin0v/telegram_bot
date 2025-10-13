@@ -1,9 +1,10 @@
-package src.com.utils.tests;
+package com.utils.tests;
 
-import src.com.utils.models.Question;
+import com.utils.models.Question;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
-import src.com.utils.services.QuestionRepository;
+import com.utils.services.QuestionRepository;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,7 +25,7 @@ public class QuestionRepositoryTest {
         Question result = questionRepository.getRandomQuestion();
 
         // Assert
-        assertNotNull(result, "Метод должен возвращать вопрос, а не null");
+        Assertions.assertNotNull(result, "Метод должен возвращать вопрос, а не null");
     }
 
     @Test
@@ -33,12 +34,12 @@ public class QuestionRepositoryTest {
         Question result = questionRepository.getRandomQuestion();
 
         // Assert
-        assertNotNull(result.getQuestion(), "Текст вопроса не должен быть null");
-        assertNotNull(result.getAnswer(), "Ответ не должен быть null");
-        assertNotNull(result.getId(), "ID не должен быть null");
+        Assertions.assertNotNull(result.getQuestion(), "Текст вопроса не должен быть null");
+        Assertions.assertNotNull(result.getAnswer(), "Ответ не должен быть null");
+        Assertions.assertNotNull(result.getId(), "ID не должен быть null");
 
-        assertFalse(result.getQuestion().isEmpty(), "Текст вопроса не должен быть пустым");
-        assertFalse(result.getAnswer().isEmpty(), "Ответ не должен быть пустым");
+        Assertions.assertFalse(result.getQuestion().isEmpty(), "Текст вопроса не должен быть пустым");
+        Assertions.assertFalse(result.getAnswer().isEmpty(), "Ответ не должен быть пустым");
     }
 
     @Test
@@ -51,16 +52,16 @@ public class QuestionRepositoryTest {
         Question result = questionRepository.getRandomQuestion();
 
         // Assert
-        assertTrue(expectedQuestions.contains(result.getQuestion()),
+        Assertions.assertTrue(expectedQuestions.contains(result.getQuestion()),
                 "Вопрос должен быть одним из предопределенных: " + result.getQuestion());
-        assertTrue(expectedAnswers.contains(result.getAnswer()),
+        Assertions.assertTrue(expectedAnswers.contains(result.getAnswer()),
                 "Ответ должен быть одним из предопределенных: " + result.getAnswer());
     }
 
 
     @Test
     void testQuestionRepository_Initialization() {
-        assertDoesNotThrow(() -> {
+        Assertions.assertDoesNotThrow(() -> {
             QuestionRepository repo = new QuestionRepository();
         }, "Конструктор не должен выбрасывать исключения");
     }

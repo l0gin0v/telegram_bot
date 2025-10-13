@@ -1,4 +1,4 @@
-package src.com.utils.interfaces;
+package com.utils.interfaces;
 
 public interface IConsole {
     void start();

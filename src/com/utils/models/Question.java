@@ -1,6 +1,6 @@
-package src.com.utils.models;
+package com.utils.models;
 
-import src.com.utils.interfaces.IQuestion;
+import com.utils.interfaces.IQuestion;
 
 public class Question implements IQuestion {
     private String question;
