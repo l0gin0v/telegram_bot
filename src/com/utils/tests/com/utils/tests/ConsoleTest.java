@@ -96,7 +96,7 @@ public class ConsoleTest {
 
         when(mockDialogLogic.getQA()).thenReturn(mockQuestion);
         when(mockQuestion.getQuestion()).thenReturn("50 + 5");
-        // Используем lenient для избежания UnnecessaryStubbingException
+
         lenient().when(mockDialogLogic.getHelp()).thenReturn("Это арифметический вопрос");
         lenient().when(mockDialogLogic.checkAnswer("55")).thenReturn(true);
 
@@ -110,9 +110,6 @@ public class ConsoleTest {
             Thread.sleep(500);
             testThread.interrupt();
         });
-
-        // Assert - проверяем что метод help был вызван
-        // Используем atLeastOnce, так как метод может вызываться несколько раз
         verify(mockDialogLogic, atLeastOnce()).getQA();
     }
 }
