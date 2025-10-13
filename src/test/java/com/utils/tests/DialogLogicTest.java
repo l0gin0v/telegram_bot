@@ -1,13 +1,13 @@
-package src.com.utils.tests;
+package com.utils.tests;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import src.com.utils.interfaces.IQuestion;
-import src.com.utils.interfaces.IQuestionRepository;
-import src.com.utils.services.DialogLogic;
+import com.utils.interfaces.IQuestion;
+import com.utils.interfaces.IQuestionRepository;
+import com.utils.services.DialogLogic;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

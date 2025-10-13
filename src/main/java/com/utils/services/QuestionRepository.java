@@ -2,8 +2,6 @@ package com.utils.services;
 
 import com.utils.models.Question;
 import com.utils.interfaces.IQuestionRepository;
-import com.utils.interfaces.IQuestion;
-import com.utils.models.Question;
 
 import java.util.ArrayList;
 import java.util.List;
