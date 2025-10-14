@@ -51,7 +51,7 @@ public class ConsoleTest {
         // Arrange
         Console console = new Console(mockDialogLogic);
 
-        when(mockDialogLogic.getQA()).thenReturn(mockQuestion);
+        when(mockDialogLogic.getQuestion()).thenReturn(mockQuestion);
         when(mockQuestion.getQuestion()).thenReturn("Test question");
 
         // Act
@@ -73,7 +73,7 @@ public class ConsoleTest {
         Console console = new Console(mockDialogLogic);
 
 
-        when(mockDialogLogic.getQA()).thenReturn(mockQuestion);
+        when(mockDialogLogic.getQuestion()).thenReturn(mockQuestion);
         when(mockQuestion.getQuestion()).thenReturn("7 + 7");
 
         String simulatedInput = "14\n";
@@ -93,11 +93,11 @@ public class ConsoleTest {
         // Arrange
         Console console = new Console(mockDialogLogic);
 
-        when(mockDialogLogic.getQA()).thenReturn(mockQuestion);
+        when(mockDialogLogic.getQuestion()).thenReturn(mockQuestion);
         when(mockQuestion.getQuestion()).thenReturn("50 + 5");
 
         lenient().when(mockDialogLogic.getHelp()).thenReturn("Это арифметический вопрос");
-        lenient().when(mockDialogLogic.checkAnswer("55")).thenReturn(true);
+        lenient().when(mockDialogLogic.processAnswer("55")).thenReturn(true);
 
         String simulatedInput = "help\n55\n";
         System.setIn(new ByteArrayInputStream(simulatedInput.getBytes()));
@@ -109,6 +109,6 @@ public class ConsoleTest {
             Thread.sleep(500);
             testThread.interrupt();
         });
-        verify(mockDialogLogic, atLeastOnce()).getQA();
+        verify(mockDialogLogic, atLeastOnce()).getQuestion();
     }
 }

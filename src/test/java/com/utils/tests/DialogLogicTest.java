@@ -32,7 +32,7 @@ public class DialogLogicTest {
     void testGetQA_ShouldReturnQuestionFromRepository() {
         when(questionRepository.getRandomQuestion()).thenReturn(question);
 
-        IQuestion result = dialogLogic.getQA();
+        IQuestion result = dialogLogic.getQuestion();
 
         assertNotNull(result);
         assertEquals(question, result);
@@ -40,49 +40,49 @@ public class DialogLogicTest {
     }
 
     @Test
-    void testCheckAnswer_WhenAnswerIsCorrect_ShouldReturnTrue() {
+    void testProcessAnswer_WhenAnswerIsCorrect_ShouldReturnTrue() {
         String correctAnswer = "правильный ответ";
         when(question.getAnswer()).thenReturn(correctAnswer);
         when(questionRepository.getRandomQuestion()).thenReturn(question);
-        dialogLogic.getQA();
+        dialogLogic.getQuestion();
 
-        boolean result = dialogLogic.checkAnswer(correctAnswer);
+        boolean result = dialogLogic.processAnswer(correctAnswer);
 
         assertTrue(result);
         verify(question, times(1)).getAnswer();
     }
 
     @Test
-    void testCheckAnswer_WhenAnswerIsIncorrect_ShouldReturnFalse() {
+    void testProcessAnswer_WhenAnswerIsIncorrect_ShouldReturnFalse() {
         String correctAnswer = "правильный ответ";
         String wrongAnswer = "неправильный ответ";
         when(question.getAnswer()).thenReturn(correctAnswer);
         when(questionRepository.getRandomQuestion()).thenReturn(question);
-        dialogLogic.getQA();
+        dialogLogic.getQuestion();
 
-        boolean result = dialogLogic.checkAnswer(wrongAnswer);
+        boolean result = dialogLogic.processAnswer(wrongAnswer);
 
         assertFalse(result);
         verify(question, times(1)).getAnswer();
     }
 
     @Test
-    void testCheckAnswer_WhenAnswerIsNull_ShouldHandleCorrectly() {
+    void testProcessAnswer_WhenAnswerIsNull_ShouldHandleCorrectly() {
         String correctAnswer = "правильный ответ";
         when(question.getAnswer()).thenReturn(correctAnswer);
         when(questionRepository.getRandomQuestion()).thenReturn(question);
-        dialogLogic.getQA();
+        dialogLogic.getQuestion();
 
-        boolean result = dialogLogic.checkAnswer(null);
+        boolean result = dialogLogic.processAnswer(null);
 
         assertFalse(result);
         verify(question, times(1)).getAnswer();
     }
 
     @Test
-    void testCheckAnswer_WhenCurrentQAIsNull_ShouldNotThrowException() {
+    void testProcessAnswer_WhenCurrentQAIsNull_ShouldNotThrowException() {
         assertDoesNotThrow(() -> {
-            boolean result = dialogLogic.checkAnswer("любой ответ");
+            boolean result = dialogLogic.processAnswer("любой ответ");
             assertFalse(result);
         });
     }
