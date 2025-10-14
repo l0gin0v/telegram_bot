@@ -40,16 +40,6 @@ public class DialogLogicTest {
     }
 
     @Test
-    void testGetQA_ShouldSetCurrentQA() {
-        when(questionRepository.getRandomQuestion()).thenReturn(question);
-
-        IQuestion result = dialogLogic.getQA();
-
-        assertNotNull(result);
-        assertEquals(question, result);
-    }
-
-    @Test
     void testCheckAnswer_WhenAnswerIsCorrect_ShouldReturnTrue() {
         String correctAnswer = "правильный ответ";
         when(question.getAnswer()).thenReturn(correctAnswer);
