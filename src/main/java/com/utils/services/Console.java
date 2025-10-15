@@ -16,30 +16,33 @@ public class Console implements IConsole {
         this.isRunning = false;
     }
 
-    public void start() {
+    private void start() {
         isRunning = true;
         System.out.println(dialogLogic.welcomeWords());
-        scanner.close();
-        System.out.println(dialogLogic.farewellWords());
     }
 
-    public void runQuizCycle() {
-        System.out.println(dialogLogic.getQuestion());
-
-        boolean questionAnswered = false;
-
-        UserAnswerStatus userAnswerStatus;
-
-        while (!questionAnswered && isRunning) {
-            System.out.print("Ваш ответ: ");
-            String userInput = scanner.nextLine().trim();
-            userAnswerStatus = dialogLogic.processAnswer(userInput);
-            System.out.println(userAnswerStatus.message());
-            questionAnswered = userAnswerStatus.isCorrectAnswer();
+    public void runBot() {
+        while (!scanner.nextLine().trim().equals("/start")) {
+            System.out.println(dialogLogic.needToStart());
         }
-    }
 
-    public void stop() {
-        isRunning = false;
+        start();
+
+        while (isRunning) {
+            System.out.println(dialogLogic.getQuestion());
+
+            boolean questionAnswered = false;
+
+            UserAnswerStatus userAnswerStatus;
+
+            while (!questionAnswered && isRunning) {
+                System.out.print("Ваш ответ: ");
+                String userInput = scanner.nextLine().trim();
+                userAnswerStatus = dialogLogic.processAnswer(userInput);
+                System.out.println(userAnswerStatus.message());
+                questionAnswered = userAnswerStatus.isCorrectAnswer();
+                isRunning = !userAnswerStatus.isQuit();
+            }
+        }
     }
 }

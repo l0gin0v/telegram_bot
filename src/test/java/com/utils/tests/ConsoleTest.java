@@ -1,5 +1,7 @@
 package com.utils.tests;
 
+import com.utils.interfaces.IDialogLogic;
+import com.utils.models.UserAnswerStatus;
 import com.utils.services.Console;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -7,108 +9,105 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.utils.interfaces.IConsole;
-import com.utils.interfaces.IDialogLogic;
-import com.utils.interfaces.IQuestion;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class ConsoleTest {
+class ConsoleTest {
 
     @Mock
-    private IDialogLogic mockDialogLogic;
+    private IDialogLogic dialogLogic;
 
-    @Mock
-    private IQuestion mockQuestion;
-
-    private InputStream originalSystemIn;
+    private Console console;
+    private ByteArrayOutputStream outputStream;
+    private PrintStream originalOut;
 
     @BeforeEach
     void setUp() {
-        originalSystemIn = System.in;
+        outputStream = new ByteArrayOutputStream();
+        originalOut = System.out;
+        System.setOut(new PrintStream(outputStream));
     }
 
     @AfterEach
     void tearDown() {
-        System.setIn(originalSystemIn);
+        System.setOut(originalOut);
     }
 
     @Test
-    void testConsoleCreation() {
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            IConsole console = new Console(mockDialogLogic);
-        }, "Конструктор не должен выбрасывать исключения");
-    }
-
-    @Test
-    void testStopMethod() {
+    void runBot_ShowsWelcomeAndQuestion() throws InterruptedException {
         // Arrange
-        Console console = new Console(mockDialogLogic);
+        String input = "/start\n/quit\n";
+        System.setIn(new ByteArrayInputStream(input.getBytes()));
 
-        when(mockDialogLogic.getQuestion()).thenReturn(mockQuestion);
-        when(mockQuestion.getQuestion()).thenReturn("Test question");
+        when(dialogLogic.welcomeWords()).thenReturn("Добро пожаловать!");
+        when(dialogLogic.getQuestion()).thenReturn("Вопрос 1");
+        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Пока!", true));
+
+        console = new Console(dialogLogic);
 
         // Act
-        console.stop();
+        Thread botThread = new Thread(() -> console.runBot());
+        botThread.start();
+        botThread.join(1000); // Ждем завершения
 
-        assertDoesNotThrow(() -> {
-            Thread testThread = new Thread(() -> {
-                console.runQuizCycle();
-            });
-            testThread.start();
-            Thread.sleep(100);
-            testThread.interrupt();
-        });
+        // Assert
+        String output = outputStream.toString();
+        assertTrue(output.contains("Добро пожаловать!"));
+        assertTrue(output.contains("Вопрос 1"));
+        assertTrue(output.contains("Пока!"));
     }
 
     @Test
-    void testRunQuizCycle_WithCorrectAnswer() {
+    void runBot_ProcessesCorrectAnswer() throws InterruptedException {
         // Arrange
-        Console console = new Console(mockDialogLogic);
+        String input = "/start\nответ\n";
+        System.setIn(new ByteArrayInputStream(input.getBytes()));
 
+        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
+        when(dialogLogic.getQuestion()).thenReturn("Question");
+        when(dialogLogic.processAnswer("ответ")).thenReturn(new UserAnswerStatus(true, "Правильно!", false));
 
-        when(mockDialogLogic.getQuestion()).thenReturn(mockQuestion);
-        when(mockQuestion.getQuestion()).thenReturn("7 + 7");
-
-        String simulatedInput = "14\n";
-        System.setIn(new ByteArrayInputStream(simulatedInput.getBytes()));
-
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            Thread testThread = new Thread(() -> console.runQuizCycle());
-            testThread.start();
-            Thread.sleep(500);
-            testThread.interrupt();
-        }, "Метод должен работать без исключений при корректном вводе");
-    }
-
-    @Test
-    void testHelpMethodIsCalled() {
-        // Arrange
-        Console console = new Console(mockDialogLogic);
-
-        when(mockDialogLogic.getQuestion()).thenReturn(mockQuestion);
-        when(mockQuestion.getQuestion()).thenReturn("50 + 5");
-
-        lenient().when(mockDialogLogic.getHelp()).thenReturn("Это арифметический вопрос");
-        lenient().when(mockDialogLogic.processAnswer("55")).thenReturn(true);
-
-        String simulatedInput = "help\n55\n";
-        System.setIn(new ByteArrayInputStream(simulatedInput.getBytes()));
+        console = new Console(dialogLogic);
 
         // Act
-        assertDoesNotThrow(() -> {
-            Thread testThread = new Thread(() -> console.runQuizCycle());
-            testThread.start();
-            Thread.sleep(500);
-            testThread.interrupt();
-        });
-        verify(mockDialogLogic, atLeastOnce()).getQuestion();
+        Thread botThread = new Thread(() -> console.runBot());
+        botThread.start();
+        Thread.sleep(100);
+        botThread.interrupt(); // Прерываем после первого вопроса
+
+        // Assert
+        String output = outputStream.toString();
+        assertTrue(output.contains("Ваш ответ:"));
+        assertTrue(output.contains("Правильно!"));
+    }
+
+    @Test
+    void runBot_WaitsForStartCommand() throws InterruptedException {
+        // Arrange
+        String input = "wrong\ninvalid\n/start\n/quit\n";
+        System.setIn(new ByteArrayInputStream(input.getBytes()));
+
+        when(dialogLogic.needToStart()).thenReturn("Введите /start");
+        when(dialogLogic.welcomeWords()).thenReturn("Started");
+        when(dialogLogic.getQuestion()).thenReturn("Q");
+        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Bye", true));
+
+        console = new Console(dialogLogic);
+
+        // Act
+        Thread botThread = new Thread(() -> console.runBot());
+        botThread.start();
+        botThread.join(1000);
+
+        // Assert
+        String output = outputStream.toString();
+        assertTrue(output.contains("Введите /start"));
+        verify(dialogLogic, atLeast(2)).needToStart(); // Должен вызываться для неправильных команд
     }
 }

@@ -1,20 +1,21 @@
 package com.utils.tests;
 
+import com.utils.interfaces.IQuestion;
+import com.utils.interfaces.IQuestionRepository;
+import com.utils.models.UserAnswerStatus;
+import com.utils.services.DialogLogic;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.utils.interfaces.IQuestion;
-import com.utils.interfaces.IQuestionRepository;
-import com.utils.services.DialogLogic;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class DialogLogicTest {
-
+class DialogLogicTest {
+    
     @Mock
     private IQuestionRepository questionRepository;
 
@@ -29,76 +30,99 @@ public class DialogLogicTest {
     }
 
     @Test
-    void testGetQA_ShouldReturnQuestionFromRepository() {
+    void testGetQuestion() {
         when(questionRepository.getRandomQuestion()).thenReturn(question);
-
-        IQuestion result = dialogLogic.getQuestion();
-
+        when(question.getQuestion()).thenReturn("Сколько будет 2+2?");
+        
+        String result = dialogLogic.getQuestion();
+        
         assertNotNull(result);
-        assertEquals(question, result);
+        assertTrue(result.contains("Вопрос: Сколько будет 2+2?"));
         verify(questionRepository, times(1)).getRandomQuestion();
     }
 
     @Test
-    void testProcessAnswer_WhenAnswerIsCorrect_ShouldReturnTrue() {
-        String correctAnswer = "правильный ответ";
-        when(question.getAnswer()).thenReturn(correctAnswer);
-        when(questionRepository.getRandomQuestion()).thenReturn(question);
-        dialogLogic.getQuestion();
-
-        boolean result = dialogLogic.processAnswer(correctAnswer);
-
-        assertTrue(result);
-        verify(question, times(1)).getAnswer();
+    void testNeedToStart() {
+        String result = dialogLogic.needToStart();
+        assertEquals("Для запуска бота введите /start", result);
     }
 
     @Test
-    void testProcessAnswer_WhenAnswerIsIncorrect_ShouldReturnFalse() {
-        String correctAnswer = "правильный ответ";
-        String wrongAnswer = "неправильный ответ";
-        when(question.getAnswer()).thenReturn(correctAnswer);
-        when(questionRepository.getRandomQuestion()).thenReturn(question);
-        dialogLogic.getQuestion();
-
-        boolean result = dialogLogic.processAnswer(wrongAnswer);
-
-        assertFalse(result);
-        verify(question, times(1)).getAnswer();
+    void testWelcomeWords() {
+        String result = dialogLogic.welcomeWords();
+        
+        assertNotNull(result);
+        assertTrue(result.contains("Добро пожаловать в бота!"));
+        assertTrue(result.contains("/help"));
+        assertTrue(result.contains("/quit"));
     }
 
     @Test
-    void testProcessAnswer_WhenAnswerIsNull_ShouldHandleCorrectly() {
-        String correctAnswer = "правильный ответ";
-        when(question.getAnswer()).thenReturn(correctAnswer);
+    void testProcessAnswer_CorrectAnswer() {
         when(questionRepository.getRandomQuestion()).thenReturn(question);
+        when(question.getAnswer()).thenReturn("4");
         dialogLogic.getQuestion();
-
-        boolean result = dialogLogic.processAnswer(null);
-
-        assertFalse(result);
-        verify(question, times(1)).getAnswer();
+        
+        UserAnswerStatus result = dialogLogic.processAnswer("4");
+        
+        assertTrue(result.isCorrectAnswer());
+        assertEquals("Правильно! Отличная работа!", result.message());
+        assertFalse(result.isQuit());
     }
 
     @Test
-    void testProcessAnswer_WhenCurrentQAIsNull_ShouldNotThrowException() {
-        assertDoesNotThrow(() -> {
-            boolean result = dialogLogic.processAnswer("любой ответ");
-            assertFalse(result);
+    void testProcessAnswer_WrongAnswer() {
+        when(questionRepository.getRandomQuestion()).thenReturn(question);
+        when(question.getAnswer()).thenReturn("4");
+        dialogLogic.getQuestion();
+        
+        UserAnswerStatus result = dialogLogic.processAnswer("5");
+        
+        assertFalse(result.isCorrectAnswer());
+        assertEquals("Неправильно. Попробуйте еще раз или введите /quit", result.message());
+        assertFalse(result.isQuit());
+    }
+
+    @Test
+    void testProcessAnswer_HelpCommand() {
+        when(questionRepository.getRandomQuestion()).thenReturn(question);
+        dialogLogic.getQuestion();
+        
+        UserAnswerStatus result = dialogLogic.processAnswer("/help");
+        
+        assertFalse(result.isCorrectAnswer());
+        assertTrue(result.message().contains("Это бот для курса ООП"));
+        assertFalse(result.isQuit());
+    }
+
+    @Test
+    void testProcessAnswer_QuitCommand() {
+        when(questionRepository.getRandomQuestion()).thenReturn(question);
+        dialogLogic.getQuestion();
+        
+        UserAnswerStatus result = dialogLogic.processAnswer("/quit");
+        
+        assertFalse(result.isCorrectAnswer());
+        assertEquals("До свидания! Возвращайтесь еще!", result.message());
+        assertTrue(result.isQuit());
+    }
+
+    @Test
+    void testProcessAnswer_WithoutCurrentQuestion() {
+        assertThrows(NullPointerException.class, () -> {
+            dialogLogic.processAnswer("ответ");
         });
     }
 
     @Test
-    void testGetHelp_ShouldReturnHelpString() {
-        String help = dialogLogic.getHelp();
-
-        assertNotNull(help);
-        assertFalse(help.isEmpty());
-        assertTrue(help.contains("ООП"));
-        assertTrue(help.contains("справочка"));
-    }
-
-    @Test
-    void testConstructor_ShouldInitializeRepository() {
-        assertNotNull(dialogLogic);
+    void testProcessAnswer_EmptyAnswer() {
+        when(questionRepository.getRandomQuestion()).thenReturn(question);
+        when(question.getAnswer()).thenReturn("4");
+        dialogLogic.getQuestion();
+        
+        UserAnswerStatus result = dialogLogic.processAnswer("");
+        
+        assertFalse(result.isCorrectAnswer());
+        assertEquals("Неправильно. Попробуйте еще раз или введите /quit", result.message());
     }
 }

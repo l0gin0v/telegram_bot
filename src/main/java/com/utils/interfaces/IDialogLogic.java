@@ -4,7 +4,7 @@ import com.utils.models.UserAnswerStatus;
 
 public interface IDialogLogic {
     String getQuestion();
+    String needToStart();
     String welcomeWords();
-    String farewellWords();
     UserAnswerStatus processAnswer(String answer);
 }
