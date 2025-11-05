@@ -2,7 +2,7 @@ package com.utils.services;
 
 import com.utils.interfaces.IConsole;
 import com.utils.interfaces.IDialogLogic;
-import com.utils.interfaces.IQuestion;
+import com.utils.models.UserAnswerStatus;
 import java.util.Scanner;
 
 public class Console implements IConsole {
@@ -16,52 +16,33 @@ public class Console implements IConsole {
         this.isRunning = false;
     }
 
-    @Override
-    public void start() {
+    private void start() {
         isRunning = true;
+        System.out.println(dialogLogic.welcomeWords());
+    }
 
-        System.out.println("Добро пожаловать в бота!");
-        System.out.println("==========================");
-        System.out.println("Доступные команды:");
-        System.out.println("  - help - получить справку");
-        System.out.println("===========================");
+    public void runBot() {
+        while (!scanner.nextLine().trim().equals("/start")) {
+            System.out.println(dialogLogic.needToStart());
+        }
+
+        start();
 
         while (isRunning) {
-            runQuizCycle();
-        }
+            System.out.println(dialogLogic.getQuestion());
 
-        scanner.close();
-        System.out.println("До свидания! Возвращайтесь еще!");
-    }
+            boolean questionAnswered = false;
 
-    @Override
-    public void runQuizCycle() {
-        IQuestion question = dialogLogic.getQA();
-        System.out.println("\nВопрос: " + question.getQuestion());
+            UserAnswerStatus userAnswerStatus;
 
-        boolean questionAnswered = false;
-
-        while (!questionAnswered && isRunning) {
-            System.out.print("Ваш ответ: ");
-            String userInput = scanner.nextLine().trim();
-
-            if (userInput.equalsIgnoreCase("help")) {
-                String help = dialogLogic.getHelp();
-                System.out.println(help);
-                continue;
-            }
-
-            if (dialogLogic.checkAnswer(userInput)) {
-                System.out.println("Правильно! Отличная работа!");
-                questionAnswered = true;
-            } else {
-                System.out.println("Неправильно. Попробуйте еще раз или введите ");
+            while (!questionAnswered && isRunning) {
+                System.out.print("Ваш ответ: ");
+                String userInput = scanner.nextLine().trim();
+                userAnswerStatus = dialogLogic.processAnswer(userInput);
+                System.out.println(userAnswerStatus.message());
+                questionAnswered = userAnswerStatus.isCorrectAnswer();
+                isRunning = !userAnswerStatus.isQuit();
             }
         }
-    }
-
-    @Override
-    public void stop() {
-        isRunning = false;
     }
 }

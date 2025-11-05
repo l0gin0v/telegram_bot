@@ -8,8 +8,6 @@ public class Main {
 		DialogLogic dialogLogic = new DialogLogic(questionRepository);
 		Console console = new Console(dialogLogic);
 
-		console.start();
-		console.runQuizCycle();
-		console.stop();
+		console.runBot();
 	}
 }
