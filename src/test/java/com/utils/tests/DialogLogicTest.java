@@ -65,9 +65,9 @@ class DialogLogicTest {
         
         UserAnswerStatus result = dialogLogic.processAnswer("4");
         
-        assertTrue(result.isCorrectAnswer());
-        assertEquals("Правильно! Отличная работа!", result.message());
-        assertFalse(result.isQuit());
+        assertTrue(result.isCorrectAnswer);
+        assertEquals("Правильно! Отличная работа!", result.message);
+        assertFalse(result.isQuit);
     }
 
     @Test
@@ -78,9 +78,9 @@ class DialogLogicTest {
         
         UserAnswerStatus result = dialogLogic.processAnswer("5");
         
-        assertFalse(result.isCorrectAnswer());
-        assertEquals("Неправильно. Попробуйте еще раз или введите /quit", result.message());
-        assertFalse(result.isQuit());
+        assertFalse(result.isCorrectAnswer);
+        assertEquals("Неправильно. Попробуйте еще раз или введите /quit", result.message);
+        assertFalse(result.isQuit);
     }
 
     @Test
@@ -90,9 +90,9 @@ class DialogLogicTest {
         
         UserAnswerStatus result = dialogLogic.processAnswer("/help");
         
-        assertFalse(result.isCorrectAnswer());
-        assertTrue(result.message().contains("Это бот для курса ООП"));
-        assertFalse(result.isQuit());
+        assertFalse(result.isCorrectAnswer);
+        assertTrue(result.message.contains("Это бот для курса ООП"));
+        assertFalse(result.isQuit);
     }
 
     @Test
@@ -102,9 +102,9 @@ class DialogLogicTest {
         
         UserAnswerStatus result = dialogLogic.processAnswer("/quit");
         
-        assertFalse(result.isCorrectAnswer());
-        assertEquals("До свидания! Возвращайтесь еще!", result.message());
-        assertTrue(result.isQuit());
+        assertFalse(result.isCorrectAnswer);
+        assertEquals("До свидания! Возвращайтесь еще!", result.message);
+        assertTrue(result.isQuit);
     }
 
     @Test
@@ -122,7 +122,7 @@ class DialogLogicTest {
         
         UserAnswerStatus result = dialogLogic.processAnswer("");
         
-        assertFalse(result.isCorrectAnswer());
-        assertEquals("Неправильно. Попробуйте еще раз или введите /quit", result.message());
+        assertFalse(result.isCorrectAnswer);
+        assertEquals("Неправильно. Попробуйте еще раз или введите /quit", result.message);
     }
 }

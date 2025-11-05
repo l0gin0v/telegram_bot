@@ -39,9 +39,9 @@ public class Console implements IConsole {
                 System.out.print("Ваш ответ: ");
                 String userInput = scanner.nextLine().trim();
                 userAnswerStatus = dialogLogic.processAnswer(userInput);
-                System.out.println(userAnswerStatus.message());
-                questionAnswered = userAnswerStatus.isCorrectAnswer();
-                isRunning = !userAnswerStatus.isQuit();
+                System.out.println(userAnswerStatus.message);
+                questionAnswered = userAnswerStatus.isCorrectAnswer;
+                isRunning = !userAnswerStatus.isQuit;
             }
         }
     }

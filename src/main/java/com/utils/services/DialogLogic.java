@@ -5,19 +5,17 @@ import com.utils.interfaces.IQuestion;
 import com.utils.interfaces.IQuestionRepository;
 import com.utils.models.UserAnswerStatus;
 
-import java.util.Objects;
-
 public class DialogLogic implements IDialogLogic {
     IQuestionRepository questionRepository;
-    IQuestion currentQA;
+    IQuestion currentQuestionInfo;
 
     public DialogLogic(IQuestionRepository questionRepository) {
         this.questionRepository = questionRepository;
     }
 
     public String getQuestion() {
-        this.currentQA = questionRepository.getRandomQuestion();
-        return "\nВопрос: " + currentQA.getQuestion();
+        this.currentQuestionInfo = questionRepository.getRandomQuestion();
+        return "\nВопрос: " + currentQuestionInfo.getQuestion();
     }
 
     public String needToStart() {
@@ -44,7 +42,7 @@ public class DialogLogic implements IDialogLogic {
         else if (answer.equals("/quit")) {
             return new UserAnswerStatus(false, farewellWords(), true);
         }
-        else if (currentQA.getAnswer().equals(answer))
+        else if (currentQuestionInfo.getAnswer().equals(answer))
             return new UserAnswerStatus(true, "Правильно! Отличная работа!", false);
         else
             return new UserAnswerStatus(false,
