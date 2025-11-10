@@ -9,6 +9,9 @@ import com.utils.services.QuestionRepository;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class QuestionRepositoryTest {
     private QuestionRepository questionRepository;
 
@@ -56,6 +59,21 @@ public class QuestionRepositoryTest {
                 "Ответ должен быть одним из предопределенных: " + result.getAnswer());
     }
 
+
+    @Test
+    void getRandomQuestion_ShouldReturnMockedQuestion() {
+        // Arrange
+        QuestionRepository mockRepository = mock(QuestionRepository.class);
+        Question expected = new Question(1, "7 + 7", "14");
+
+        when(mockRepository.getRandomQuestion()).thenReturn(expected);
+
+        // Act
+        Question actual = mockRepository.getRandomQuestion();
+
+        // Assert
+        Assertions.assertEquals(expected, actual);
+    }
 
     @Test
     void testQuestionRepository_Initialization() {
