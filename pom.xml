@@ -39,6 +39,20 @@
             <version>5.3.1</version>
             <scope>compile</scope>
         </dependency>
+
+        <!-- Telegram Bot -->
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots</artifactId>
+            <version>6.8.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots-abilities</artifactId>
+            <version>6.8.0</version>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>
