@@ -9,15 +9,16 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class TelegramBot extends TelegramLongPollingBot {
-    private final IDialogLogic dialogLogic;
+    private final Supplier<IDialogLogic> dialogLogicFactory;
     private final Map<Long, UserSession> userSessions;
     private final String botUsername;
     private final String botToken;
 
-    public TelegramBot(IDialogLogic dialogLogic, String botUsername, String botToken) {
-        this.dialogLogic = dialogLogic;
+    public TelegramBot(Supplier<IDialogLogic> dialogLogicFactory, String botUsername, String botToken) {
+        this.dialogLogicFactory = dialogLogicFactory;
         this.userSessions = new HashMap<>();
         this.botUsername = botUsername;
         this.botToken = botToken;
@@ -42,7 +43,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         if (!session.isRunning()) {
-            sendMessage(chatId, dialogLogic.needToStart());
+            sendMessage(chatId, session.getDialogLogic().needToStart());
             return;
         }
 
@@ -50,11 +51,12 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private void startNewSession(Long chatId) {
-        UserSession newSession = new UserSession();
+        IDialogLogic userDialogLogic = dialogLogicFactory.get();
+        UserSession newSession = new UserSession(userDialogLogic);
         newSession.setRunning(true);
         userSessions.put(chatId, newSession);
 
-        sendMessage(chatId, dialogLogic.welcomeWords());
+        sendMessage(chatId, userDialogLogic.welcomeWords());
         askNextQuestion(chatId, newSession);
     }
 
@@ -63,7 +65,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        UserAnswerStatus userAnswerStatus = dialogLogic.processAnswer(userInput);
+        UserAnswerStatus userAnswerStatus = session.getDialogLogic().processAnswer(userInput);
         sendMessage(chatId, userAnswerStatus.message);
 
         session.setWaitingForAnswer(false);
@@ -83,7 +85,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        String question = dialogLogic.getQuestion();
+        String question = session.getDialogLogic().getQuestion();
         sendMessage(chatId, question);
         session.setWaitingForAnswer(true);
     }
@@ -111,12 +113,32 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private static class UserSession {
+        private final IDialogLogic dialogLogic;
         private boolean isRunning = false;
         private boolean isWaitingForAnswer = false;
 
-        public boolean isRunning() { return isRunning; }
-        public void setRunning(boolean running) { isRunning = running; }
-        public boolean isWaitingForAnswer() { return isWaitingForAnswer; }
-        public void setWaitingForAnswer(boolean waiting) { isWaitingForAnswer = waiting; }
+        public UserSession(IDialogLogic dialogLogic) {
+            this.dialogLogic = dialogLogic;
+        }
+
+        public IDialogLogic getDialogLogic() {
+            return dialogLogic;
+        }
+
+        public boolean isRunning() {
+            return isRunning;
+        }
+
+        public void setRunning(boolean running) {
+            isRunning = running;
+        }
+
+        public boolean isWaitingForAnswer() {
+            return isWaitingForAnswer;
+        }
+
+        public void setWaitingForAnswer(boolean waitingForAnswer) {
+            isWaitingForAnswer = waitingForAnswer;
+        }
     }
 }
