@@ -303,6 +303,28 @@ class TelegramBotTest {
         verifyNoInteractions(dialogLogicFactory);
     }
 
+    @Test
+    void testSessionReuseAfterCorrectAnswer() throws TelegramApiException {
+        // Arrange
+        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
+        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
+        when(dialogLogic.getQuestion()).thenReturn("Q1?", "Q2?"); // разные вопросы
+
+        UserAnswerStatus correctStatus = new UserAnswerStatus(true, "correct", false);
+        when(dialogLogic.processAnswer("answer")).thenReturn(correctStatus);
+
+        // Start and answer
+        Update startUpdate = createTextUpdate(123L, "/start");
+        telegramBot.onUpdateReceived(startUpdate);
+
+        Update answerUpdate = createTextUpdate(123L, "answer");
+        telegramBot.onUpdateReceived(answerUpdate);
+
+        // Assert - та же сессия, новый вопрос
+        verify(dialogLogic, times(2)).getQuestion(); // start + after correct
+        verify(dialogLogicFactory, times(1)).get(); // только одна фабрика
+    }
+
     private Update createTextUpdate(Long chatId, String text) {
         Update update = new Update();
         Message message = new Message();
