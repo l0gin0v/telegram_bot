@@ -48,15 +48,15 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        if (!session.isRunning()) {
-            sendMessage(chatId, session.getDialogLogic().needToStart());
-            return;
-        }
-
         handleAnswer(chatId, messageText, session);
     }
 
     private void startNewSession(Long chatId) {
+        UserSession oldSession = userSessions.get(chatId);
+        if (oldSession != null) {
+            oldSession.setRunning(false);
+        }
+
         IDialogLogic userDialogLogic = dialogLogicFactory.get();
         UserSession newSession = new UserSession(userDialogLogic);
         newSession.setRunning(true);
@@ -77,7 +77,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         session.setWaitingForAnswer(false);
 
         if (userAnswerStatus.isQuit) {
-            session.setRunning(false);
+            userSessions.remove(chatId);
             sendMessage(chatId, "Сессия завершена. Напишите /start чтобы начать заново.");
         } else if (userAnswerStatus.isCorrectAnswer) {
             askNextQuestion(chatId, session);
