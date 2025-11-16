@@ -37,8 +37,14 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void handleUserMessage(Long chatId, String messageText) {
         UserSession session = userSessions.get(chatId);
 
-        if (session == null || "/start".equals(messageText)) {
+        if ("/start".equals(messageText)) {
             startNewSession(chatId);
+            return;
+        }
+
+        if (session == null) {
+            IDialogLogic tempDialogLogic = dialogLogicFactory.get();
+            sendMessage(chatId, tempDialogLogic.needToStart());
             return;
         }
 
