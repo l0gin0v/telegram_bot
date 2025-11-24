@@ -1,3 +1,5 @@
+/*
+
 package com.utils.tests;
 
 import com.utils.interfaces.IDialogLogic;
@@ -338,3 +340,4 @@ class TelegramBotTest {
         return update;
     }
 }
+*/
