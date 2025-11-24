@@ -1,7 +1,5 @@
 package com.utils.models;
 
-import java.util.List;
-
 public class OpenMeteoResponse {
     private Daily daily;
 
