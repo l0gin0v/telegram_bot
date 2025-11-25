@@ -1,7 +1,4 @@
-import com.utils.services.TelegramBot;
-import com.utils.services.Console;
-import com.utils.services.DialogLogic;
-import com.utils.services.QuestionRepository;
+import com.utils.services.*;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
@@ -57,19 +54,14 @@ public class Main {
             return;
         }
 
-        QuestionRepository questionRepository = new QuestionRepository();
-
         try {
             TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
-            botsApi.registerBot(new TelegramBot(
-                    () -> new DialogLogic(questionRepository),
-                    botUsername,
-                    botToken
-            ));
+            botsApi.registerBot(new TelegramBot(botUsername, botToken));
 
             System.out.println("Telegram bot started successfully!");
             System.out.println("Bot username: " + botUsername);
-            System.out.println("Бот запущен и ожидает сообщений...");
+            System.out.println("Погодный бот с кнопками запущен и ожидает сообщений...");
+            System.out.println("Бот запоминает города пользователей и показывает кнопки для выбора периода.");
 
         } catch (TelegramApiException e) {
             System.err.println("Failed to start Telegram bot: " + e.getMessage());
@@ -80,8 +72,8 @@ public class Main {
     private static void startConsoleBot() {
         System.out.println("=== ЗАПУСК КОНСОЛЬНОГО БОТА ===");
 
-        QuestionRepository questionRepository = new QuestionRepository();
-        DialogLogic dialogLogic = new DialogLogic(questionRepository);
+        WeatherAPI weatherAPI = new WeatherAPI();
+        DialogLogic dialogLogic = new DialogLogic(weatherAPI);
         Console console = new Console(dialogLogic);
 
         console.runBot();
@@ -89,8 +81,6 @@ public class Main {
 
     private static void startBothBots() {
         System.out.println("=== ЗАПУСК ОБОИХ БОТОВ ===");
-
-        QuestionRepository questionRepository = new QuestionRepository();
 
         Thread telegramThread = new Thread(() -> {
             startTelegramBot();
@@ -112,13 +102,13 @@ public class Main {
     private static void printUsage() {
         System.out.println("Использование: java Main <режим>");
         System.out.println("Режимы:");
-        System.out.println("  1 - Запуск только Telegram бота");
+        System.out.println("  1 - Запуск только Telegram бота (С КНОПКАМИ)");
         System.out.println("  2 - Запуск только консольного бота");
         System.out.println("  3 - Запуск обоих ботов");
         System.out.println();
         System.out.println("Примеры:");
-        System.out.println("  java Main 1  - запуск Telegram бота");
-        System.out.println("  java Main 2  - запуск консольной версии");
+        System.out.println("  java Main 1  - запуск Telegram погодного бота с кнопками");
+        System.out.println("  java Main 2  - запуск консольной версии погодного бота");
         System.out.println("  java Main 3  - запуск обеих версий одновременно");
     }
 }
