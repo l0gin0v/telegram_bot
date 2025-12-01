@@ -96,7 +96,7 @@ public class DialogLogic implements IDialogLogic {
                     weather = weatherAPI.getFormattedWeatherByCity(currentCity, 1);
                     break;
                 case 2:
-                    weather = formatTomorrowWeather(currentCity);
+                    weather = weatherAPI.getFormattedWeatherByCity(currentCity, 2);
                     break;
                 case 3:
                     weather = weatherAPI.getFormattedWeatherByCity(currentCity, 3);
@@ -112,25 +112,6 @@ public class DialogLogic implements IDialogLogic {
             return new UserAnswerStatus(false,
                     "❌ Ошибка при получении погоды: " + e.getMessage(), false);
         }
-    }
-
-    private String formatTomorrowWeather(String city) throws Exception {
-        OpenMeteoResponse response = weatherAPI.getWeatherByCity(city, 2);
-
-        StringBuilder weatherText = new StringBuilder();
-        weatherText.append(String.format("📅 Погода в %s на завтра:\n\n", city));
-
-        // Берем данные для второго дня (индекс 1)
-        double tempMin = response.getDaily().getTemperature2mMin().get(1);
-        double tempMax = response.getDaily().getTemperature2mMax().get(1);
-        String condition = weatherAPI.getWeatherCondition(response.getDaily().getWeathercode().get(1));
-        double windSpeed = response.getDaily().getWindspeed10mMax().get(1);
-
-        weatherText.append(String.format("🌡 Температура: %.0f°C...%.0f°C\n", tempMin, tempMax))
-                .append(String.format("%s\n", condition))
-                .append(String.format("💨 Ветер: %.0f км/ч", windSpeed));
-
-        return weatherText.toString();
     }
 
     private String getHelp() {

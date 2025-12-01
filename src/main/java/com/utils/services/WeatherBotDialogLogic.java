@@ -40,7 +40,6 @@ public class WeatherBotDialogLogic implements IDialogLogic {
             return new UserAnswerStatus(false, farewellWords(), true);
         }
         else {
-            // Обработка запроса погоды
             try {
                 String weather = weatherAPI.getQuickWeather(answer);
                 return new UserAnswerStatus(true, weather, false);
@@ -65,7 +64,6 @@ public class WeatherBotDialogLogic implements IDialogLogic {
                 case "today":
                     return weatherAPI.getFormattedWeatherByCity(city, 1);
                 case "tomorrow":
-                    // Реализовать получение погоды на завтра
                     return weatherAPI.getFormattedWeatherByCity(city, 2);
                 case "3days":
                     return weatherAPI.getFormattedWeatherByCity(city, 3);
