@@ -23,14 +23,14 @@ class DailyTest {
         daily.setTime(time);
         daily.setTemperature2mMax(tempMax);
         daily.setTemperature2mMin(tempMin);
-        daily.setWeathercode(weatherCode);
+        daily.setWeatherCode(weatherCode);
         daily.setWindspeed10mMax(windSpeed);
         daily.setPrecipitationProbabilityMax(precipitationProb);
 
         assertEquals(time, daily.getTime());
         assertEquals(tempMax, daily.getTemperature2mMax());
         assertEquals(tempMin, daily.getTemperature2mMin());
-        assertEquals(weatherCode, daily.getWeathercode());
+        assertEquals(weatherCode, daily.getWeatherCode());
         assertEquals(windSpeed, daily.getWindspeed10mMax());
         assertEquals(precipitationProb, daily.getPrecipitationProbabilityMax());
     }
@@ -42,14 +42,14 @@ class DailyTest {
         daily.setTime(null);
         daily.setTemperature2mMax(null);
         daily.setTemperature2mMin(null);
-        daily.setWeathercode(null);
+        daily.setWeatherCode(null);
         daily.setWindspeed10mMax(null);
         daily.setPrecipitationProbabilityMax(null);
 
         assertNull(daily.getTime());
         assertNull(daily.getTemperature2mMax());
         assertNull(daily.getTemperature2mMin());
-        assertNull(daily.getWeathercode());
+        assertNull(daily.getWeatherCode());
         assertNull(daily.getWindspeed10mMax());
         assertNull(daily.getPrecipitationProbabilityMax());
     }
@@ -65,14 +65,14 @@ class DailyTest {
         daily.setTime(emptyTime);
         daily.setTemperature2mMax(emptyTemp);
         daily.setTemperature2mMin(emptyTemp);
-        daily.setWeathercode(emptyCode);
+        daily.setWeatherCode(emptyCode);
         daily.setWindspeed10mMax(emptyTemp);
         daily.setPrecipitationProbabilityMax(emptyTemp);
 
         assertEquals(0, daily.getTime().size());
         assertEquals(0, daily.getTemperature2mMax().size());
         assertEquals(0, daily.getTemperature2mMin().size());
-        assertEquals(0, daily.getWeathercode().size());
+        assertEquals(0, daily.getWeatherCode().size());
         assertEquals(0, daily.getWindspeed10mMax().size());
         assertEquals(0, daily.getPrecipitationProbabilityMax().size());
     }

@@ -242,7 +242,7 @@ class WeatherAPITest {
         daily.setTime(Arrays.asList(LocalDate.now().toString()));
         daily.setTemperature2mMax(Arrays.asList(20.0));
         daily.setTemperature2mMin(Arrays.asList(10.0));
-        daily.setWeathercode(Arrays.asList(0));
+        daily.setWeatherCode(Arrays.asList(0));
         daily.setWindspeed10mMax(Arrays.asList(15.0));
         daily.setPrecipitationProbabilityMax(Arrays.asList(30.0));
 
@@ -262,7 +262,7 @@ class WeatherAPITest {
         ));
         daily.setTemperature2mMax(Arrays.asList(20.0, 22.0, 18.0));
         daily.setTemperature2mMin(Arrays.asList(10.0, 12.0, 8.0));
-        daily.setWeathercode(Arrays.asList(0, 1, 2));
+        daily.setWeatherCode(Arrays.asList(0, 1, 2));
         daily.setWindspeed10mMax(Arrays.asList(15.0, 18.0, 12.0));
         daily.setPrecipitationProbabilityMax(Arrays.asList(30.0, 40.0, 20.0));
 

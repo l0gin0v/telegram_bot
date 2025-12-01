@@ -5,10 +5,12 @@ import com.utils.models.UserAnswerStatus;
 
 public class DialogLogic implements IDialogLogic {
     private final WeatherAPI weatherAPI;
+    private final WeatherFormatter weatherFormatter;
     private String currentCity;
 
     public DialogLogic(WeatherAPI weatherAPI) {
         this.weatherAPI = weatherAPI;
+        this.weatherFormatter = new WeatherFormatter(weatherAPI);
     }
 
     public String getQuestion() {
@@ -51,9 +53,8 @@ public class DialogLogic implements IDialogLogic {
             return new UserAnswerStatus(false, farewellWords(), true);
         }
         else if (currentCity == null) {
-            // Обработка ввода города
             try {
-                String weather = weatherAPI.getQuickWeather(answer);
+                String weather = weatherFormatter.getQuickWeather(answer);
                 currentCity = answer;
                 return new UserAnswerStatus(true,
                         "✅ Город установлен: " + answer + "\n\n" + weather +
@@ -92,19 +93,27 @@ public class DialogLogic implements IDialogLogic {
             String weather;
             switch (days) {
                 case 1:
-                    weather = weatherAPI.getFormattedWeatherByCity(currentCity, 1);
+                    weather = weatherFormatter.getQuickWeather(currentCity);
                     break;
                 case 2:
-                    weather = weatherAPI.getFormattedWeatherByCity(currentCity, 2);
+                    weather = weatherFormatter.formatTomorrowWeather(currentCity);
                     break;
                 case 3:
-                    weather = weatherAPI.getFormattedWeatherByCity(currentCity, 3);
+                    var responseFor3Days = weatherAPI.getWeatherByCity(currentCity, 3);
+                    var coordsFor3Days = weatherAPI.getGeocoding().getCoordinates(currentCity);
+                    weather = weatherFormatter.formatWeatherResponse(
+                            responseFor3Days, coordsFor3Days.getDisplayName(), 3
+                    );
                     break;
                 case 7:
-                    weather = weatherAPI.getFormattedWeatherByCity(currentCity, 7);
+                    var responseFor7Days = weatherAPI.getWeatherByCity(currentCity, 3);
+                    var coordsFor7Days = weatherAPI.getGeocoding().getCoordinates(currentCity);
+                    weather = weatherFormatter.formatWeatherResponse(
+                            responseFor7Days, coordsFor7Days.getDisplayName(), 3
+                    );
                     break;
                 default:
-                    weather = weatherAPI.getQuickWeather(currentCity);
+                    weather = weatherFormatter.getQuickWeather(currentCity);
             }
             return new UserAnswerStatus(true, weather, false);
         } catch (Exception e) {

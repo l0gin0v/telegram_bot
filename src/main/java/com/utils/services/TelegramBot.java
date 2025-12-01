@@ -2,6 +2,7 @@ package com.utils.services;
 
 import com.utils.models.Coordinates;
 import com.utils.models.OpenMeteoResponse;
+import com.utils.services.WeatherBotDialogLogic;
 
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -17,6 +18,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final String botUsername;
     private final String botToken;
     private final WeatherAPI weatherAPI;
+    private final WeatherBotDialogLogic weatherBotDialogLogic;
     private final Geocoding geocodingService;
 
     // Храним города пользователей
@@ -37,6 +39,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         this.botUsername = botUsername;
         this.botToken = botToken;
         this.weatherAPI = new WeatherAPI();
+        this.weatherBotDialogLogic = new WeatherBotDialogLogic(weatherAPI);
         this.geocodingService = new Geocoding();
     }
 
@@ -96,12 +99,9 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private void endUserSession(long chatId) {
-        String farewellText = "👋 До свидания! Сессия завершена.\nДля возобновления работы введите /start";
-
         // Отправляем сообщение с удалением клавиатуры
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
-        message.setText(farewellText);
 
         // Удаляем клавиатуру
         ReplyKeyboardRemove keyboardRemove = new ReplyKeyboardRemove();
@@ -125,9 +125,8 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void sendSessionInactiveMessage(long chatId) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
-        message.setText("❌ Сессия завершена. Введите /start для начала новой сессии.");
+        message.setText(weatherBotDialogLogic.farewallWordsForInactive());
 
-        // Удаляем клавиатуру
         ReplyKeyboardRemove keyboardRemove = new ReplyKeyboardRemove();
         keyboardRemove.setRemoveKeyboard(true);
         message.setReplyMarkup(keyboardRemove);
@@ -140,7 +139,6 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private void handleDefaultState(long chatId, String messageText) {
-        // В обычном состоянии обрабатываем только кнопки
         switch (messageText) {
             case "🌤 Сегодня":
                 sendWeatherForPeriod(chatId, 1);
@@ -252,22 +250,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private void sendHelp(long chatId) {
-        String helpText =
-                "📖 Помощь по боту:\n\n" +
-                        "🌤 Получить погоду:\n" +
-                        "  - Нажмите кнопку с периодом (Сегодня, Завтра и т.д.)\n" +
-                        "  - Бот покажет погоду для вашего текущего города\n\n" +
-                        "📍 Сменить город:\n" +
-                        "  - Нажмите \"📍 Сменить город\" или \"🏙 Популярные города\"\n" +
-                        "  - Введите название города\n" +
-                        "  - Бот запомнит ваш выбор\n\n" +
-                        "🔄 Управление сессией:\n" +
-                        "  - /start - начать сессию\n" +
-                        "  - /quit - завершить сессию\n" +
-                        "  - /help - показать справку\n\n" +
-                        "❓ Если что-то не работает:\n" +
-                        "  - Проверьте правильность написания города\n" +
-                        "  - Используйте форматы: \"Москва\" или \"Moscow, Russia\"";
+        String helpText = weatherBotDialogLogic.getHelp();
 
         sendMessage(chatId, helpText, KeyboardFactory.createMainWeatherKeyboard());
         setUserState(chatId, UserState.DEFAULT);
@@ -285,7 +268,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         try {
-            String weatherText = getWeatherForPeriod(city, days);
+            String weatherText = weatherBotDialogLogic.getWeatherForPeriod(city, days);
             sendMessage(chatId, weatherText, KeyboardFactory.createMainWeatherKeyboard());
 
         } catch (Exception e) {
@@ -296,41 +279,6 @@ public class TelegramBot extends TelegramLongPollingBot {
             );
             e.printStackTrace();
         }
-    }
-
-    private String getWeatherForPeriod(String city, int days) throws Exception {
-        switch (days) {
-            case 1:
-                return weatherAPI.getFormattedWeatherByCity(city, 1);
-            case 2:
-                return formatTomorrowWeather(city);
-            case 3:
-                return weatherAPI.getFormattedWeatherByCity(city, 3);
-            case 7:
-                return weatherAPI.getFormattedWeatherByCity(city, 7);
-            default:
-                return weatherAPI.getQuickWeather(city);
-        }
-    }
-
-    private String formatTomorrowWeather(String city) throws Exception {
-        OpenMeteoResponse response = weatherAPI.getWeatherByCity(city, 2);
-        Coordinates coords = geocodingService.getCoordinates(city);
-
-        StringBuilder weatherText = new StringBuilder();
-        weatherText.append(String.format("📅 Погода в %s на завтра:\n\n", city));
-
-        // Берем данные для второго дня (индекс 1)
-        double tempMin = response.getDaily().getTemperature2mMin().get(1);
-        double tempMax = response.getDaily().getTemperature2mMax().get(1);
-        String condition = weatherAPI.getWeatherCondition(response.getDaily().getWeathercode().get(1));
-        double windSpeed = response.getDaily().getWindspeed10mMax().get(1);
-
-        weatherText.append(String.format("🌡 Температура: %.0f°C...%.0f°C\n", tempMin, tempMax))
-                .append(String.format("%s\n", condition))
-                .append(String.format("💨 Ветер: %.0f км/ч", windSpeed));
-
-        return weatherText.toString();
     }
 
     private String getUserName(long chatId) {
