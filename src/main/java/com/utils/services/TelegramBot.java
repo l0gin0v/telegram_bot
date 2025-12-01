@@ -321,10 +321,10 @@ public class TelegramBot extends TelegramLongPollingBot {
         weatherText.append(String.format("📅 Погода в %s на завтра:\n\n", city));
 
         // Берем данные для второго дня (индекс 1)
-        double tempMin = response.getDaily().getTemperature_2m_min().get(1);
-        double tempMax = response.getDaily().getTemperature_2m_max().get(1);
+        double tempMin = response.getDaily().getTemperature2mMin().get(1);
+        double tempMax = response.getDaily().getTemperature2mMax().get(1);
         String condition = weatherAPI.getWeatherCondition(response.getDaily().getWeathercode().get(1));
-        double windSpeed = response.getDaily().getWindspeed_10m_max().get(1);
+        double windSpeed = response.getDaily().getWindspeed10mMax().get(1);
 
         weatherText.append(String.format("🌡 Температура: %.0f°C...%.0f°C\n", tempMin, tempMax))
                 .append(String.format("%s\n", condition))

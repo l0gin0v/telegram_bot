@@ -21,18 +21,18 @@ class DailyTest {
         List<Double> precipitationProb = Arrays.asList(30.0, 20.0, 40.0);
 
         daily.setTime(time);
-        daily.setTemperature_2m_max(tempMax);
-        daily.setTemperature_2m_min(tempMin);
+        daily.setTemperature2mMax(tempMax);
+        daily.setTemperature2mMin(tempMin);
         daily.setWeathercode(weatherCode);
-        daily.setWindspeed_10m_max(windSpeed);
-        daily.setPrecipitation_probability_max(precipitationProb);
+        daily.setWindspeed10mMax(windSpeed);
+        daily.setPrecipitationProbabilityMax(precipitationProb);
 
         assertEquals(time, daily.getTime());
-        assertEquals(tempMax, daily.getTemperature_2m_max());
-        assertEquals(tempMin, daily.getTemperature_2m_min());
+        assertEquals(tempMax, daily.getTemperature2mMax());
+        assertEquals(tempMin, daily.getTemperature2mMin());
         assertEquals(weatherCode, daily.getWeathercode());
-        assertEquals(windSpeed, daily.getWindspeed_10m_max());
-        assertEquals(precipitationProb, daily.getPrecipitation_probability_max());
+        assertEquals(windSpeed, daily.getWindspeed10mMax());
+        assertEquals(precipitationProb, daily.getPrecipitationProbabilityMax());
     }
 
     @Test
@@ -40,18 +40,18 @@ class DailyTest {
         Daily daily = new Daily();
 
         daily.setTime(null);
-        daily.setTemperature_2m_max(null);
-        daily.setTemperature_2m_min(null);
+        daily.setTemperature2mMax(null);
+        daily.setTemperature2mMin(null);
         daily.setWeathercode(null);
-        daily.setWindspeed_10m_max(null);
-        daily.setPrecipitation_probability_max(null);
+        daily.setWindspeed10mMax(null);
+        daily.setPrecipitationProbabilityMax(null);
 
         assertNull(daily.getTime());
-        assertNull(daily.getTemperature_2m_max());
-        assertNull(daily.getTemperature_2m_min());
+        assertNull(daily.getTemperature2mMax());
+        assertNull(daily.getTemperature2mMin());
         assertNull(daily.getWeathercode());
-        assertNull(daily.getWindspeed_10m_max());
-        assertNull(daily.getPrecipitation_probability_max());
+        assertNull(daily.getWindspeed10mMax());
+        assertNull(daily.getPrecipitationProbabilityMax());
     }
 
     @Test
@@ -63,18 +63,18 @@ class DailyTest {
         List<Integer> emptyCode = new ArrayList<>();
 
         daily.setTime(emptyTime);
-        daily.setTemperature_2m_max(emptyTemp);
-        daily.setTemperature_2m_min(emptyTemp);
+        daily.setTemperature2mMax(emptyTemp);
+        daily.setTemperature2mMin(emptyTemp);
         daily.setWeathercode(emptyCode);
-        daily.setWindspeed_10m_max(emptyTemp);
-        daily.setPrecipitation_probability_max(emptyTemp);
+        daily.setWindspeed10mMax(emptyTemp);
+        daily.setPrecipitationProbabilityMax(emptyTemp);
 
         assertEquals(0, daily.getTime().size());
-        assertEquals(0, daily.getTemperature_2m_max().size());
-        assertEquals(0, daily.getTemperature_2m_min().size());
+        assertEquals(0, daily.getTemperature2mMax().size());
+        assertEquals(0, daily.getTemperature2mMin().size());
         assertEquals(0, daily.getWeathercode().size());
-        assertEquals(0, daily.getWindspeed_10m_max().size());
-        assertEquals(0, daily.getPrecipitation_probability_max().size());
+        assertEquals(0, daily.getWindspeed10mMax().size());
+        assertEquals(0, daily.getPrecipitationProbabilityMax().size());
     }
 
     @Test
@@ -85,10 +85,10 @@ class DailyTest {
         List<Double> originalTemp = new ArrayList<>(Arrays.asList(25.5, 26.0));
 
         daily.setTime(originalTime);
-        daily.setTemperature_2m_max(originalTemp);
+        daily.setTemperature2mMax(originalTemp);
 
         List<String> modifiedTime = new ArrayList<>(daily.getTime());
-        List<Double> modifiedTemp = new ArrayList<>(daily.getTemperature_2m_max());
+        List<Double> modifiedTemp = new ArrayList<>(daily.getTemperature2mMax());
 
         modifiedTime.add("2025-10-04");
         modifiedTemp.add(27.0);
@@ -97,7 +97,7 @@ class DailyTest {
         assertEquals(3, modifiedTemp.size());
 
         assertEquals(2, daily.getTime().size());
-        assertEquals(2, daily.getTemperature_2m_max().size());
+        assertEquals(2, daily.getTemperature2mMax().size());
     }
 
     @Test

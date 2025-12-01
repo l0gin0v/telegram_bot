@@ -99,8 +99,8 @@ class WeatherAPITest {
         assertNotNull(result);
         assertNotNull(result.getDaily());
         assertEquals(2, result.getDaily().getTime().size());
-        assertEquals(20.5, result.getDaily().getTemperature_2m_max().get(0));
-        assertEquals(10.5, result.getDaily().getTemperature_2m_min().get(0));
+        assertEquals(20.5, result.getDaily().getTemperature2mMax().get(0));
+        assertEquals(10.5, result.getDaily().getTemperature2mMin().get(0));
     }
 
     @Test
@@ -240,11 +240,11 @@ class WeatherAPITest {
         Daily daily = new Daily();
 
         daily.setTime(Arrays.asList(LocalDate.now().toString()));
-        daily.setTemperature_2m_max(Arrays.asList(20.0));
-        daily.setTemperature_2m_min(Arrays.asList(10.0));
+        daily.setTemperature2mMax(Arrays.asList(20.0));
+        daily.setTemperature2mMin(Arrays.asList(10.0));
         daily.setWeathercode(Arrays.asList(0));
-        daily.setWindspeed_10m_max(Arrays.asList(15.0));
-        daily.setPrecipitation_probability_max(Arrays.asList(30.0));
+        daily.setWindspeed10mMax(Arrays.asList(15.0));
+        daily.setPrecipitationProbabilityMax(Arrays.asList(30.0));
 
         response.setDaily(daily);
         return response;
@@ -260,11 +260,11 @@ class WeatherAPITest {
                 today.plusDays(1).toString(),
                 today.plusDays(2).toString()
         ));
-        daily.setTemperature_2m_max(Arrays.asList(20.0, 22.0, 18.0));
-        daily.setTemperature_2m_min(Arrays.asList(10.0, 12.0, 8.0));
+        daily.setTemperature2mMax(Arrays.asList(20.0, 22.0, 18.0));
+        daily.setTemperature2mMin(Arrays.asList(10.0, 12.0, 8.0));
         daily.setWeathercode(Arrays.asList(0, 1, 2));
-        daily.setWindspeed_10m_max(Arrays.asList(15.0, 18.0, 12.0));
-        daily.setPrecipitation_probability_max(Arrays.asList(30.0, 40.0, 20.0));
+        daily.setWindspeed10mMax(Arrays.asList(15.0, 18.0, 12.0));
+        daily.setPrecipitationProbabilityMax(Arrays.asList(30.0, 40.0, 20.0));
 
         response.setDaily(daily);
         return response;

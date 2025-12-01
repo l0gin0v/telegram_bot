@@ -61,17 +61,17 @@ public class WeatherAPI {
         StringBuilder weatherText = new StringBuilder();
 
         if (days == 1) {
-            double tempMin = response.getDaily().getTemperature_2m_min().get(0);
-            double tempMax = response.getDaily().getTemperature_2m_max().get(0);
+            double tempMin = response.getDaily().getTemperature2mMin().get(0);
+            double tempMax = response.getDaily().getTemperature2mMax().get(0);
             String condition = getWeatherCondition(response.getDaily().getWeathercode().get(0));
 
             weatherText.append(String.format("🌤 Погода в %s:\n\n", location))
                     .append(String.format("🌡 Температура: %.0f°C...%.0f°C\n", tempMin, tempMax))
                     .append(String.format("%s\n", condition))
-                    .append(String.format("💨 Ветер: %.0f км/ч\n", response.getDaily().getWindspeed_10m_max().get(0)));
+                    .append(String.format("💨 Ветер: %.0f км/ч\n", response.getDaily().getWindspeed10mMax().get(0)));
 
-            if (response.getDaily().getPrecipitation_probability_max() != null) {
-                double precipitation = response.getDaily().getPrecipitation_probability_max().get(0);
+            if (response.getDaily().getPrecipitationProbabilityMax() != null) {
+                double precipitation = response.getDaily().getPrecipitationProbabilityMax().get(0);
                 weatherText.append(String.format("☔️ Вероятность дождя: %.0f%%", precipitation));
             }
 
@@ -80,8 +80,8 @@ public class WeatherAPI {
 
             for (int i = 0; i < Math.min(days, response.getDaily().getTime().size()); i++) {
                 String dayName = formatDay(response.getDaily().getTime().get(i));
-                double tempMin = response.getDaily().getTemperature_2m_min().get(i);
-                double tempMax = response.getDaily().getTemperature_2m_max().get(i);
+                double tempMin = response.getDaily().getTemperature2mMin().get(i);
+                double tempMax = response.getDaily().getTemperature2mMax().get(i);
                 String condition = getWeatherCondition(response.getDaily().getWeathercode().get(i));
 
                 weatherText.append(String.format("%s: %.0f°C...%.0f°C, %s\n",
