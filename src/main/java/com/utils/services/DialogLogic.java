@@ -23,7 +23,6 @@ public class DialogLogic implements IDialogLogic {
                             "3 - Погода на 3 дня\n" +
                             "4 - Погода на неделю\n" +
                             "5 - Сменить город\n" +
-                            "6 - Выйти\n" +
                             "Введите номер:",
                     currentCity
             );
@@ -49,7 +48,7 @@ public class DialogLogic implements IDialogLogic {
         if (answer.equals("/help")) {
             return new UserAnswerStatus(false, getHelp(), false);
         }
-        else if (answer.equals("/quit") || answer.equals("6")) {
+        else if (answer.equals("/quit")) {
             return new UserAnswerStatus(false, farewellWords(), true);
         }
         else if (currentCity == null) {
@@ -84,7 +83,7 @@ public class DialogLogic implements IDialogLogic {
                             "Введите новый город:", false);
                 default:
                     return new UserAnswerStatus(false,
-                            "❌ Неверный выбор. Введите число от 1 до 6", false);
+                            "❌ Неверный выбор. Введите число от 1 до 5", false);
             }
         }
     }
@@ -140,7 +139,7 @@ public class DialogLogic implements IDialogLogic {
                 "1. Введите название города\n" +
                 "2. Выберите период прогноза (1-4)\n" +
                 "3. Для смены города введите 5\n" +
-                "4. Для выхода введите 6 или /quit\n\n" +
+                "4. Для выхода введите /quit\n\n" +
                 "Команды:\n" +
                 "/help - показать эту справку\n" +
                 "/quit - выйти из бота";
