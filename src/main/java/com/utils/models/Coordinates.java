@@ -11,6 +11,12 @@ public class Coordinates {
         this.displayName = displayName;
     }
 
+    public Coordinates(NominatimResponse nominatimResponse) {
+        this.lat = Double.parseDouble(nominatimResponse.getLatitude());
+        this.lon = Double.parseDouble(nominatimResponse.getLongitude());
+        this.displayName = nominatimResponse.getDisplayName();
+    }
+
     public double getLat() { return lat; }
     public double getLon() { return lon; }
     public String getDisplayName() { return displayName; }

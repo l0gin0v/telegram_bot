@@ -2,7 +2,6 @@ package com.utils.services;
 
 import com.utils.interfaces.IDialogLogic;
 import com.utils.models.UserAnswerStatus;
-import com.utils.models.OpenMeteoResponse;
 
 public class DialogLogic implements IDialogLogic {
     private final WeatherAPI weatherAPI;
