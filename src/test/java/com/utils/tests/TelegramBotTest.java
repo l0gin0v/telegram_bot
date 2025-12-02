@@ -1,22 +1,22 @@
 package com.utils.tests;
 
-import com.utils.interfaces.IDialogLogic;
 import com.utils.services.TelegramBot;
-import com.utils.models.UserAnswerStatus;
-
+import com.utils.services.WeatherAPI;
+import com.utils.services.Geocoding;
+import com.utils.models.Coordinates;
+import com.utils.services.WeatherBotDialogLogic;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.function.Supplier;
+import java.lang.reflect.Field;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,306 +26,55 @@ import static org.mockito.Mockito.*;
 class TelegramBotTest {
 
     @Mock
-    private Supplier<IDialogLogic> dialogLogicFactory;
+    private WeatherAPI mockWeatherAPI;
 
     @Mock
-    private IDialogLogic dialogLogic;
+    private Geocoding mockGeocoding;
+
+    @Mock
+    private WeatherBotDialogLogic mockWeatherBotDialogLogic;
+
+    @Mock
+    private Message mockTelegramMessage;
 
     private TelegramBot telegramBot;
+    private final long TEST_CHAT_ID = 12345L;
     private final String BOT_USERNAME = "test_bot";
     private final String BOT_TOKEN = "test_token";
 
     @BeforeEach
-    void setUp() {
-        telegramBot = new TelegramBot(dialogLogicFactory, BOT_USERNAME, BOT_TOKEN);
+    void setUp() throws Exception {
+        telegramBot = new TelegramBot(BOT_USERNAME, BOT_TOKEN);
+        setPrivateField(telegramBot, "weatherAPI", mockWeatherAPI);
+        setPrivateField(telegramBot, "geocodingService", mockGeocoding);
+        setPrivateField(telegramBot, "weatherBotDialogLogic", mockWeatherBotDialogLogic);
     }
 
-    @Test
-    void testBotUsernameAndToken() {
-        assertEquals(BOT_USERNAME, telegramBot.getBotUsername());
-        assertEquals(BOT_TOKEN, telegramBot.getBotToken());
+    private void setPrivateField(Object target, String fieldName, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
-    @Test
-    void testStartCommandCreatesNewSession() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Добро пожаловать!");
-        when(dialogLogic.getQuestion()).thenReturn("Первый вопрос?");
-
-        Update update = createTextUpdate(123L, "/start");
-
-        // Act
-        telegramBot.onUpdateReceived(update);
-
-        // Assert
-        verify(dialogLogicFactory).get();
-        verify(dialogLogic).welcomeWords();
-        verify(dialogLogic).getQuestion();
+    @SuppressWarnings("unchecked")
+    private <T> T getPrivateField(Object target, String fieldName) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return (T) field.get(target);
     }
 
-    @Test
-    void testMultipleUsersSessions() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question?");
-
-        // Act
-        Update user1Update = createTextUpdate(123L, "/start");
-        Update user2Update = createTextUpdate(456L, "/start");
-
-        telegramBot.onUpdateReceived(user1Update);
-        telegramBot.onUpdateReceived(user2Update);
-
-        // Assert
-        verify(dialogLogicFactory, times(2)).get();
-        verify(dialogLogic, times(2)).welcomeWords();
-        verify(dialogLogic, times(2)).getQuestion();
+    private Object getUserStateValue(String stateName) throws Exception {
+        for (Class<?> declaredClass : TelegramBot.class.getDeclaredClasses()) {
+            if (declaredClass.getSimpleName().equals("UserState")) {
+                Field field = declaredClass.getDeclaredField(stateName);
+                field.setAccessible(true);
+                return field.get(null);
+            }
+        }
+        throw new IllegalArgumentException("UserState." + stateName + " not found");
     }
 
-    @Test
-    void testUserAnswerProcessing_CorrectAnswer() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question?");
-
-        UserAnswerStatus correctAnswerStatus = new UserAnswerStatus(true, "right", false);
-
-        when(dialogLogic.processAnswer("правильный ответ")).thenReturn(correctAnswerStatus);
-
-        // Start session first
-        Update startUpdate = createTextUpdate(123L, "/start");
-        telegramBot.onUpdateReceived(startUpdate);
-
-        // Then send correct answer
-        Update answerUpdate = createTextUpdate(123L, "правильный ответ");
-        telegramBot.onUpdateReceived(answerUpdate);
-
-        // Assert
-        verify(dialogLogic).processAnswer("правильный ответ");
-        verify(dialogLogic, times(2)).getQuestion();
-    }
-
-    @Test
-    void testUserAnswerProcessing_WrongAnswer() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question?");
-
-        UserAnswerStatus wrongAnswerStatus = new UserAnswerStatus(false,  "wrong", false);
-
-        when(dialogLogic.processAnswer("неправильный ответ")).thenReturn(wrongAnswerStatus);
-
-        // Start session
-        Update startUpdate = createTextUpdate(123L, "/start");
-        telegramBot.onUpdateReceived(startUpdate);
-
-        // Send wrong answer
-        Update answerUpdate = createTextUpdate(123L, "неправильный ответ");
-        telegramBot.onUpdateReceived(answerUpdate);
-
-        // Assert
-        verify(dialogLogic).processAnswer("неправильный ответ");
-        verify(dialogLogic, times(1)).getQuestion();
-    }
-
-    @Test
-    void testUserAnswerProcessing_QuitCommand() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question?");
-        when(dialogLogic.needToStart()).thenReturn("Начните с /start");
-
-        UserAnswerStatus quitAnswerStatus = new UserAnswerStatus(false, "quit", true);
-
-        when(dialogLogic.processAnswer("quit")).thenReturn(quitAnswerStatus);
-
-        // Start session
-        Update startUpdate = createTextUpdate(123L, "/start");
-        telegramBot.onUpdateReceived(startUpdate);
-
-        // Send quit command
-        Update quitUpdate = createTextUpdate(123L, "quit");
-        telegramBot.onUpdateReceived(quitUpdate);
-
-        // Assert
-        verify(dialogLogic).processAnswer("quit");
-
-        // Try to send another message after quit
-        Update anotherUpdate = createTextUpdate(123L, "еще сообщение");
-        telegramBot.onUpdateReceived(anotherUpdate);
-
-        // Should receive needToStart message
-        verify(dialogLogic).needToStart();
-    }
-
-    @Test
-    void testRestartSessionWithStartCommand() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question?");
-
-        // Start first session
-        Update startUpdate1 = createTextUpdate(123L, "/start");
-        telegramBot.onUpdateReceived(startUpdate1);
-
-        // Restart session with /start command
-        Update startUpdate2 = createTextUpdate(123L, "/start");
-        telegramBot.onUpdateReceived(startUpdate2);
-
-        // Assert
-        verify(dialogLogicFactory, times(2)).get();
-        verify(dialogLogic, times(2)).welcomeWords();
-        verify(dialogLogic, times(2)).getQuestion();
-    }
-
-    @Test
-    void testSendMessageFormat() throws TelegramApiException {
-        // Arrange
-        TelegramBot spyBot = spy(telegramBot);
-
-        Message mockMessage = mock(Message.class);
-        doReturn(mockMessage).when(spyBot).execute(any(SendMessage.class));
-
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Test welcome");
-        when(dialogLogic.getQuestion()).thenReturn("First question?");
-
-        // Act
-        Update update = createTextUpdate(123L, "/start");
-        spyBot.onUpdateReceived(update);
-
-        // Assert
-        ArgumentCaptor<SendMessage> messageCaptor = ArgumentCaptor.forClass(SendMessage.class);
-        verify(spyBot, atLeastOnce()).execute(messageCaptor.capture());
-
-        SendMessage sentMessage = messageCaptor.getAllValues().get(0);
-        assertEquals("123", sentMessage.getChatId());
-        assertEquals("Test welcome", sentMessage.getText());
-    }
-
-    @Test
-    void testNoSession_MessageWithoutStart() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.needToStart()).thenReturn("Пожалуйста, начните с /start");
-
-        // Act
-        Update update = createTextUpdate(123L, "просто сообщение");
-        telegramBot.onUpdateReceived(update);
-
-        // Assert
-        verify(dialogLogic).needToStart();
-    }
-
-    @Test
-    void testMessageWhenNotWaitingForAnswer() throws TelegramApiException {
-        // Arrange
-        TelegramBot spyBot = spy(telegramBot);
-
-        Message mockMessage = mock(Message.class);
-
-        doReturn(mockMessage).when(spyBot).execute(any(SendMessage.class));
-
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question?");
-
-        UserAnswerStatus answerStatus = new UserAnswerStatus(true, "right", false);
-        when(dialogLogic.processAnswer("ответ")).thenReturn(answerStatus);
-
-        // Start session and answer first question
-        Update startUpdate = createTextUpdate(123L, "/start");
-        spyBot.onUpdateReceived(startUpdate);
-
-        Update answerUpdate = createTextUpdate(123L, "ответ");
-        spyBot.onUpdateReceived(answerUpdate);
-
-        // Send another message immediately (when not waiting for answer)
-        UserAnswerStatus extraMessageStatus = new UserAnswerStatus(false, "Не сейчас", false);
-        when(dialogLogic.processAnswer("лишнее сообщение")).thenReturn(extraMessageStatus);
-
-        Update extraUpdate = createTextUpdate(123L, "лишнее сообщение");
-        spyBot.onUpdateReceived(extraUpdate);
-
-        // Assert
-        verify(dialogLogic, times(1)).processAnswer("ответ");
-        verify(dialogLogic, times(1)).processAnswer("лишнее сообщение");
-    }
-
-    @Test
-    void testTelegramApiExceptionHandling() throws TelegramApiException {
-        // Arrange
-        TelegramBot spyBot = spy(telegramBot);
-        doThrow(new TelegramApiException("API error")).when(spyBot).execute(any(SendMessage.class));
-
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question?");
-
-        // Act
-        Update update = createTextUpdate(123L, "/start");
-        spyBot.onUpdateReceived(update);
-
-        // Assert
-        verify(spyBot, atLeastOnce()).execute(any(SendMessage.class));
-    }
-
-    @Test
-    void testUpdateWithoutText() {
-        // Arrange
-        Update update = new Update();
-        Message message = new Message();
-        // message has no text
-        update.setMessage(message);
-
-        // Act
-        telegramBot.onUpdateReceived(update);
-
-        // Assert
-        verifyNoInteractions(dialogLogicFactory);
-    }
-
-    @Test
-    void testUpdateWithoutMessage() {
-        // Arrange
-        Update update = new Update();
-
-        // Act
-        telegramBot.onUpdateReceived(update);
-
-        // Assert
-        verifyNoInteractions(dialogLogicFactory);
-    }
-
-    @Test
-    void testSessionReuseAfterCorrectAnswer() throws TelegramApiException {
-        // Arrange
-        when(dialogLogicFactory.get()).thenReturn(dialogLogic);
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Q1?", "Q2?"); // разные вопросы
-
-        UserAnswerStatus correctStatus = new UserAnswerStatus(true, "correct", false);
-        when(dialogLogic.processAnswer("answer")).thenReturn(correctStatus);
-
-        // Start and answer
-        Update startUpdate = createTextUpdate(123L, "/start");
-        telegramBot.onUpdateReceived(startUpdate);
-
-        Update answerUpdate = createTextUpdate(123L, "answer");
-        telegramBot.onUpdateReceived(answerUpdate);
-
-        // Assert - та же сессия, новый вопрос
-        verify(dialogLogic, times(2)).getQuestion(); // start + after correct
-        verify(dialogLogicFactory, times(1)).get(); // только одна фабрика
-    }
-
-    private Update createTextUpdate(Long chatId, String text) {
+    private Update createTextUpdate(long chatId, String text) {
         Update update = new Update();
         Message message = new Message();
         Chat chat = new Chat();
@@ -336,5 +85,187 @@ class TelegramBotTest {
         update.setMessage(message);
 
         return update;
+    }
+
+    @Test
+    void getBotUsername_ShouldReturnConfiguredUsername() {
+        assertEquals(BOT_USERNAME, telegramBot.getBotUsername());
+    }
+
+    @Test
+    void getBotToken_ShouldReturnConfiguredToken() {
+        assertEquals(BOT_TOKEN, telegramBot.getBotToken());
+    }
+
+    @Test
+    void startCommand_ShouldInitializeUserSession() throws Exception {
+        Update update = createTextUpdate(TEST_CHAT_ID, "/start");
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        botSpy.onUpdateReceived(update);
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        assertTrue(userSessions.get(TEST_CHAT_ID));
+    }
+
+    @Test
+    void quitCommand_ShouldEndUserSession() throws Exception {
+        Update update = createTextUpdate(TEST_CHAT_ID, "/quit");
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        userSessions.put(TEST_CHAT_ID, true);
+
+        botSpy.onUpdateReceived(update);
+
+        assertFalse(userSessions.get(TEST_CHAT_ID));
+    }
+
+    @Test
+    void changeCityCommand_ShouldSetWaitingForCityState() throws Exception {
+        Update update = createTextUpdate(TEST_CHAT_ID, "📍 Сменить город");
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        userSessions.put(TEST_CHAT_ID, true);
+
+        botSpy.onUpdateReceived(update);
+
+        Map<Long, Object> userStates = getPrivateField(botSpy, "userStates");
+        Object waitingState = getUserStateValue("WAITING_FOR_CITY");
+        assertEquals(waitingState, userStates.get(TEST_CHAT_ID));
+    }
+
+    @Test
+    void validCityInput_ShouldSetCityAndReturnToDefaultState() throws Exception {
+        Update update = createTextUpdate(TEST_CHAT_ID, "Москва");
+        Coordinates coordinates = new Coordinates(55.7558, 37.6173, "Москва, Россия");
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        userSessions.put(TEST_CHAT_ID, true);
+
+        when(mockGeocoding.getCoordinates("Москва")).thenReturn(coordinates);
+
+        Map<Long, Object> userStates = getPrivateField(botSpy, "userStates");
+        Object waitingState = getUserStateValue("WAITING_FOR_CITY");
+        userStates.put(TEST_CHAT_ID, waitingState);
+
+        botSpy.onUpdateReceived(update);
+
+        Map<Long, String> userCities = getPrivateField(botSpy, "userCities");
+        assertEquals("Москва", userCities.get(TEST_CHAT_ID));
+    }
+
+    @Test
+    void invalidCityInput_ShouldKeepWaitingState() throws Exception {
+        Update update = createTextUpdate(TEST_CHAT_ID, "НесуществующийГород");
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        userSessions.put(TEST_CHAT_ID, true);
+
+        when(mockGeocoding.getCoordinates("НесуществующийГород"))
+                .thenThrow(new RuntimeException("Город не найден"));
+
+        Map<Long, Object> userStates = getPrivateField(botSpy, "userStates");
+        Object waitingState = getUserStateValue("WAITING_FOR_CITY");
+        userStates.put(TEST_CHAT_ID, waitingState);
+
+        botSpy.onUpdateReceived(update);
+
+        assertEquals(waitingState, userStates.get(TEST_CHAT_ID));
+    }
+
+    @Test
+    void multipleUsers_ShouldHaveIndependentSessions() throws Exception {
+        long user1ChatId = 11111L;
+        long user2ChatId = 22222L;
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        Update user1Start = createTextUpdate(user1ChatId, "/start");
+        Update user2Start = createTextUpdate(user2ChatId, "/start");
+
+        botSpy.onUpdateReceived(user1Start);
+        botSpy.onUpdateReceived(user2Start);
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        assertTrue(userSessions.get(user1ChatId));
+        assertTrue(userSessions.get(user2ChatId));
+    }
+
+    @Test
+    void popularCitiesCommand_ShouldShowCitiesKeyboard() throws Exception {
+        Update update = createTextUpdate(TEST_CHAT_ID, "🏙 Популярные города");
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        userSessions.put(TEST_CHAT_ID, true);
+
+        botSpy.onUpdateReceived(update);
+
+        Map<Long, Object> userStates = getPrivateField(botSpy, "userStates");
+        Object waitingState = getUserStateValue("WAITING_FOR_CITY");
+        assertEquals(waitingState, userStates.get(TEST_CHAT_ID));
+    }
+
+    @Test
+    void cancelCommandInWaitingState_ShouldReturnToDefaultState() throws Exception {
+        Update update = createTextUpdate(TEST_CHAT_ID, "↩️ Отмена");
+
+        TelegramBot botSpy = spy(telegramBot);
+        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
+
+        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
+        userSessions.put(TEST_CHAT_ID, true);
+
+        Map<Long, Object> userStates = getPrivateField(botSpy, "userStates");
+        Object waitingState = getUserStateValue("WAITING_FOR_CITY");
+        userStates.put(TEST_CHAT_ID, waitingState);
+
+        botSpy.onUpdateReceived(update);
+
+        Object defaultState = getUserStateValue("DEFAULT");
+        assertEquals(defaultState, userStates.get(TEST_CHAT_ID));
+    }
+
+    @Test
+    void updateWithoutMessage_ShouldBeIgnored() {
+        Update update = new Update();
+
+        telegramBot.onUpdateReceived(update);
+
+        verifyNoInteractions(mockWeatherAPI);
+        verifyNoInteractions(mockGeocoding);
+    }
+
+    @Test
+    void updateWithoutText_ShouldBeIgnored() {
+        Update update = new Update();
+        Message message = new Message();
+        Chat chat = new Chat();
+
+        chat.setId(TEST_CHAT_ID);
+        message.setChat(chat);
+        update.setMessage(message);
+
+        telegramBot.onUpdateReceived(update);
+
+        verifyNoInteractions(mockWeatherAPI);
+        verifyNoInteractions(mockGeocoding);
     }
 }
