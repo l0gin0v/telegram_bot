@@ -32,6 +32,12 @@
             <scope>compile</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.7</version>
+        </dependency>
+
         <!-- Интеграция Mockito с JUnit 5 -->
         <dependency>
             <groupId>org.mockito</groupId>
@@ -39,6 +45,14 @@
             <version>5.3.1</version>
             <scope>compile</scope>
         </dependency>
+
+        <!-- Telegram Bot -->
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots</artifactId>
+            <version>6.8.0</version>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>
