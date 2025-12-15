@@ -1,9 +1,10 @@
 package com.utils.services;
 
+import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import com.utils.interfaces.INotificationClient;
 import com.utils.models.Coordinates;
+import com.utils.models.UserSession;
 
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
@@ -22,22 +23,10 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     private final Geocoding geocodingService;
     private final NotificationService notificationService;
     private final NotificationScheduler notificationScheduler;
+    private final SessionManager sessionManager;
 
-    // Храним города пользователей
-    private final Map<Long, String> userCities = new HashMap<>();
-    // Храним состояния пользователей
-    private final Map<Long, UserState> userStates = new HashMap<>();
-    // Храним активные сессии
-    private final Map<Long, Boolean> userSessions = new HashMap<>();
-
-    private final Map<Long, LocalDate> lastNotificationSent = new ConcurrentHashMap<>();
-
-    // Перечисление состояний пользователя
     private enum UserState {
-        DEFAULT,           // Обычное состояние - обрабатываем команды
-        WAITING_FOR_CITY,  // Ожидаем ввод города
-        WAITING_FOR_NOTIFICATION_TIME, // Ожидаем времени уведомления
-        INACTIVE           // Сессия завершена, ждем /start
+        DEFAULT, WAITING_FOR_CITY, WAITING_FOR_NOTIFICATION_TIME, INACTIVE
     }
 
     public TelegramBot(String botUsername, String botToken) {
@@ -46,9 +35,12 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         this.weatherAPI = new WeatherAPI();
         this.weatherBotDialogLogic = new WeatherBotDialogLogic(weatherAPI);
         this.geocodingService = new Geocoding();
+        this.sessionManager = new SessionManager();
 
         WeatherFormatter weatherFormatter = new WeatherFormatter(weatherAPI);
-        this.notificationService = new NotificationService(weatherAPI, weatherFormatter);
+        this.notificationService = new NotificationService(
+                weatherAPI, weatherFormatter, sessionManager
+        );
         this.notificationScheduler = new NotificationScheduler(notificationService, this);
 
         Thread notificationThread = new Thread(notificationScheduler);
@@ -62,16 +54,15 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
 
-            // Проверяем активна ли сессия пользователя
-            if (!userSessions.getOrDefault(chatId, false) && !messageText.equals("/start")) {
+            sessionManager.updateActivity(chatId);
+
+            if (!sessionManager.isSessionActive(chatId) && !messageText.equals("/start")) {
                 sendSessionInactiveMessage(chatId);
                 return;
             }
 
-            // Получаем текущее состояние пользователя
-            UserState currentState = userStates.getOrDefault(chatId, UserState.DEFAULT);
+            UserState currentState = getUserStateFromDB(chatId);
 
-            // Обрабатываем команды, которые работают в любом состоянии
             if (messageText.equals("/start")) {
                 startUserSession(chatId);
                 sendWelcomeMessage(chatId);
@@ -86,12 +77,10 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
                 return;
             }
 
-            // Если сессия не активна, игнорируем сообщения
-            if (!userSessions.getOrDefault(chatId, false)) {
+            if (!sessionManager.isSessionActive(chatId)) {
                 return;
             }
 
-            // Обрабатываем в зависимости от состояния
             switch (currentState) {
                 case DEFAULT:
                     handleDefaultState(chatId, messageText);
@@ -109,19 +98,29 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         }
     }
 
+    private UserState getUserStateFromDB(long chatId) {
+        return sessionManager.getSession(chatId)
+                .map(session -> {
+                    try {
+                        return UserState.valueOf(session.getState());
+                    } catch (IllegalArgumentException e) {
+                        return UserState.INACTIVE;
+                    }
+                })
+                .orElse(UserState.INACTIVE);
+    }
+
     private void startUserSession(long chatId) {
-        userSessions.put(chatId, true);
-        userStates.put(chatId, UserState.DEFAULT);
+        sessionManager.activateSession(chatId, null);
+        sessionManager.updateState(chatId, UserState.DEFAULT.name());
     }
 
     private void endUserSession(long chatId) {
         String farewellText = "👋 До свидания! Сессия завершена.\nДля возобновления работы введите /start";
-        // Отправляем сообщение с удалением клавиатуры
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(farewellText);
 
-        // Удаляем клавиатуру
         ReplyKeyboardRemove keyboardRemove = new ReplyKeyboardRemove();
         keyboardRemove.setRemoveKeyboard(true);
         message.setReplyMarkup(keyboardRemove);
@@ -132,17 +131,13 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
             e.printStackTrace();
         }
 
-        // Завершаем сессию
-        userSessions.put(chatId, false);
-        userStates.put(chatId, UserState.INACTIVE);
-
+        sessionManager.deactivateSession(chatId);
         notificationService.cancelNotification(chatId);
-        // Очищаем данные пользователя (опционально)
-        // userCities.remove(chatId);
     }
 
+    @Override
     public boolean isUserSessionActive(long chatId) {
-        return userSessions.getOrDefault(chatId, false);
+        return sessionManager.isSessionActive(chatId);
     }
 
     private void sendSessionInactiveMessage(long chatId) {
@@ -176,11 +171,11 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
                 sendWeatherForPeriod(chatId, 7);
                 break;
             case "📍 Сменить город":
-                setUserState(chatId, UserState.WAITING_FOR_CITY);
+                sessionManager.updateState(chatId, UserState.WAITING_FOR_CITY.name());
                 askForCity(chatId);
                 break;
             case "🏙 Популярные города":
-                setUserState(chatId, UserState.WAITING_FOR_CITY);
+                sessionManager.updateState(chatId, UserState.WAITING_FOR_CITY.name());
                 showPopularCities(chatId);
                 break;
             case "🔔 Уведомления":
@@ -199,10 +194,10 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
                 break;
             case "↩️ Назад":
             case "↩️ Отмена":
+                sessionManager.updateState(chatId, UserState.DEFAULT.name());
                 sendWelcomeMessage(chatId);
                 break;
             default:
-                // Если это не команда и не кнопка, игнорируем или показываем подсказку
                 sendMessage(chatId,
                         "🤔 Используйте кнопки для навигации или введите /help для справки",
                         KeyboardFactory.createMainWeatherKeyboard()
@@ -211,7 +206,9 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     }
 
     private void showNotificationMenu(long chatId) {
-        String city = userCities.get(chatId);
+        String city = sessionManager.getSession(chatId)
+                .map(UserSession::getCity)
+                .orElse(null);
 
         if (city == null) {
             sendMessage(chatId,
@@ -222,8 +219,7 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         }
 
         String menuText = String.format(
-                "🔔 Управление уведомлениями для %s:\n\n" +
-                        "нажмите кнопку:",
+                "🔔 Управление уведомлениями для %s:\n\nнажмите кнопку:",
                 city
         );
 
@@ -231,11 +227,9 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     }
 
     private void handleNotificationTimeInput(long chatId, String timeInput) {
-        // Проверяем, находимся ли мы в состоянии ожидания времени
-        UserState currentState = userStates.getOrDefault(chatId, UserState.DEFAULT);
+        UserState currentState = getUserStateFromDB(chatId);
 
         if (!currentState.equals(UserState.WAITING_FOR_NOTIFICATION_TIME)) {
-            // Если не в состоянии ожидания, игнорируем или показываем подсказку
             sendMessage(chatId,
                     "Нажмите ⏰ Установить время сначала",
                     KeyboardFactory.createMainWeatherKeyboard()
@@ -244,7 +238,7 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         }
 
         if (timeInput.equals("↩️ Назад") || timeInput.equals("↩️ Отмена")) {
-            setUserState(chatId, UserState.DEFAULT);
+            sessionManager.updateState(chatId, UserState.DEFAULT.name());
             showNotificationMenu(chatId);
             return;
         }
@@ -258,20 +252,23 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
             return;
         }
 
-        String city = userCities.get(chatId);
+        String city = sessionManager.getSession(chatId)
+                .map(UserSession::getCity)
+                .orElse(null);
+
         if (city == null) {
             sendMessage(chatId,
                     "❌ Сначала выберите город",
                     KeyboardFactory.createMainWeatherKeyboard()
             );
-            setUserState(chatId, UserState.DEFAULT);
+            sessionManager.updateState(chatId, UserState.DEFAULT.name());
             return;
         }
 
         try {
             String result = notificationService.setNotification(chatId, city, timeInput);
             sendMessage(chatId, result, KeyboardFactory.createMainWeatherKeyboard());
-            setUserState(chatId, UserState.DEFAULT);
+            sessionManager.updateState(chatId, UserState.DEFAULT.name());
 
         } catch (Exception e) {
             sendMessage(chatId,
@@ -281,28 +278,27 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         }
     }
 
+    @Override
     public void sendNotificationToUser(long chatId, String notificationText) {
         sendMessage(chatId, notificationText, KeyboardFactory.createMainWeatherKeyboard());
     }
-
 
     private boolean isValidTimeFormat(String time) {
         return time.matches("^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$");
     }
 
-
-
     private void handleCityInputState(long chatId, String messageText) {
         if (messageText.equals("↩️ Назад") || messageText.equals("↩️ Отмена")) {
-            setUserState(chatId, UserState.DEFAULT);
+            sessionManager.updateState(chatId, UserState.DEFAULT.name());
             sendWelcomeMessage(chatId);
             return;
         }
 
         try {
             Coordinates coords = geocodingService.getCoordinates(messageText);
-            userCities.put(chatId, messageText);
-            setUserState(chatId, UserState.DEFAULT);
+
+            sessionManager.updateCity(chatId, messageText);
+            sessionManager.updateState(chatId, UserState.DEFAULT.name());
 
             String confirmation = String.format(
                     "✅ Город установлен: %s\n\n" +
@@ -323,14 +319,13 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         }
     }
 
-    private void setUserState(long chatId, UserState state) {
-        userStates.put(chatId, state);
-    }
-
     private void sendWelcomeMessage(long chatId) {
-        setUserState(chatId, UserState.DEFAULT);
+        sessionManager.updateState(chatId, UserState.DEFAULT.name());
         String userName = getUserName(chatId);
-        String city = userCities.get(chatId);
+
+        String city = sessionManager.getSession(chatId)
+                .map(UserSession::getCity)
+                .orElse(null);
 
         String text;
         if (city != null) {
@@ -362,7 +357,7 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     }
 
     private void askForNotificationTime(long chatId) {
-        setUserState(chatId, UserState.WAITING_FOR_NOTIFICATION_TIME);
+        sessionManager.updateState(chatId, UserState.WAITING_FOR_NOTIFICATION_TIME.name());
         sendMessage(chatId,
                 "⏰ Введите время для уведомления (формат HH:MM):\n" +
                         "Например: 09:00, 18:30\n\n" +
@@ -384,11 +379,13 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         String helpText = weatherBotDialogLogic.getHelp();
 
         sendMessage(chatId, helpText, KeyboardFactory.createMainWeatherKeyboard());
-        setUserState(chatId, UserState.DEFAULT);
+        sessionManager.updateState(chatId, UserState.DEFAULT.name());
     }
 
     private void sendWeatherForPeriod(long chatId, int days) {
-        String city = userCities.get(chatId);
+        String city = sessionManager.getSession(chatId)
+                .map(UserSession::getCity)
+                .orElse(null);
 
         if (city == null) {
             sendMessage(chatId,
@@ -417,8 +414,8 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     }
 
     private void sendMessage(long chatId, String text, ReplyKeyboardMarkup keyboard) {
-        // Проверяем активна ли сессия
-        if (!userSessions.getOrDefault(chatId, false)) {
+        // Проверяем активна ли сессия через SessionManager
+        if (!sessionManager.isSessionActive(chatId)) {
             return;
         }
 
