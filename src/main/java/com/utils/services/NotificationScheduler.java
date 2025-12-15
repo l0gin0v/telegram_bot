@@ -2,9 +2,11 @@ package com.utils.services;
 
 import com.utils.interfaces.INotificationClient;
 import com.utils.models.Notification;
+import com.utils.models.UserSession;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -35,32 +37,35 @@ public class NotificationScheduler implements Runnable {
 
     private void checkAndSendNotifications() {
         try {
-            Set<Long> activeChats = notificationService.getActiveNotifications();
+            // Получаем все сессии с уведомлениями через NotificationService
+            List<UserSession> sessions = notificationService.getSessionsForNotificationCheck();
 
-            for (Long chatId : activeChats) {
-                // Проверяем активна ли сессия пользователя через телеграм бот
-                if (notificationClient.isUserSessionActive(chatId)) {
-                    Notification notification = notificationService.getNotification(chatId);
-                    if (notification == null) continue;
+            for (UserSession session : sessions) {
+                Long userId = session.getUserId();
+
+                // Проверяем активна ли сессия
+                if (notificationClient.isUserSessionActive(userId)) {
 
                     LocalDate today = LocalDate.now();
-                    LocalDate lastSent = lastNotificationSent.get(chatId);
+                    LocalDate lastSent = session.getLastNotificationSent();
 
                     if (lastSent != null && lastSent.equals(today)) {
                         continue; // Уже отправляли сегодня
                     }
 
                     LocalTime now = LocalTime.now();
-                    LocalTime notificationTime = notification.getTime();
+                    LocalTime notificationTime = session.getNotificationTime();
 
                     if (isTimeToSend(now, notificationTime)) {
-                        String notificationText = notificationService.getWeatherNotification(chatId);
+                        String notificationText = notificationService.getWeatherNotification(userId);
 
                         if (notificationText != null && !notificationText.startsWith("❌")) {
-                            // Используем метод телеграм бота для отправки сообщения
-                            notificationClient.sendNotificationToUser(chatId, notificationText);
-                            lastNotificationSent.put(chatId, today);
-                            System.out.println("Отправлено уведомление для chatId: " + chatId + " в " + now);
+                            notificationClient.sendNotificationToUser(userId, notificationText);
+
+                            // Помечаем как отправленное
+                            notificationService.markNotificationSent(userId);
+
+                            System.out.println("Отправлено уведомление для userId: " + userId + " в " + now);
                         }
                     }
                 }

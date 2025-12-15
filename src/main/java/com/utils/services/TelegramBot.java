@@ -23,16 +23,8 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     private final Geocoding geocodingService;
     private final NotificationService notificationService;
     private final NotificationScheduler notificationScheduler;
-    private final SessionManager sessionManager; // Добавляем менеджер сессий
+    private final SessionManager sessionManager;
 
-    // Удаляем старые Map'ы и используем SessionManager
-    // private final Map<Long, String> userCities = new HashMap<>();
-    // private final Map<Long, UserState> userStates = new HashMap<>();
-    // private final Map<Long, Boolean> userSessions = new HashMap<>();
-
-    private final Map<Long, LocalDate> lastNotificationSent = new ConcurrentHashMap<>();
-
-    // Перечисление состояний пользователя
     private enum UserState {
         DEFAULT, WAITING_FOR_CITY, WAITING_FOR_NOTIFICATION_TIME, INACTIVE
     }
@@ -43,10 +35,12 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         this.weatherAPI = new WeatherAPI();
         this.weatherBotDialogLogic = new WeatherBotDialogLogic(weatherAPI);
         this.geocodingService = new Geocoding();
-        this.sessionManager = new SessionManager(); // Инициализируем менеджер сессий
+        this.sessionManager = new SessionManager();
 
         WeatherFormatter weatherFormatter = new WeatherFormatter(weatherAPI);
-        this.notificationService = new NotificationService(weatherAPI, weatherFormatter);
+        this.notificationService = new NotificationService(
+                weatherAPI, weatherFormatter, sessionManager
+        );
         this.notificationScheduler = new NotificationScheduler(notificationService, this);
 
         Thread notificationThread = new Thread(notificationScheduler);
@@ -60,19 +54,15 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
 
-            // Обновляем активность пользователя в БД
             sessionManager.updateActivity(chatId);
 
-            // Проверяем активна ли сессия пользователя через SessionManager
             if (!sessionManager.isSessionActive(chatId) && !messageText.equals("/start")) {
                 sendSessionInactiveMessage(chatId);
                 return;
             }
 
-            // Получаем текущее состояние пользователя из SessionManager
             UserState currentState = getUserStateFromDB(chatId);
 
-            // Обрабатываем команды, которые работают в любом состоянии
             if (messageText.equals("/start")) {
                 startUserSession(chatId);
                 sendWelcomeMessage(chatId);
@@ -87,12 +77,10 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
                 return;
             }
 
-            // Если сессия не активна, игнорируем сообщения
             if (!sessionManager.isSessionActive(chatId)) {
                 return;
             }
 
-            // Обрабатываем в зависимости от состояния
             switch (currentState) {
                 case DEFAULT:
                     handleDefaultState(chatId, messageText);
@@ -111,7 +99,6 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     }
 
     private UserState getUserStateFromDB(long chatId) {
-        // Получаем состояние из SessionManager
         return sessionManager.getSession(chatId)
                 .map(session -> {
                     try {
@@ -144,7 +131,6 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
             e.printStackTrace();
         }
 
-        // Завершаем сессию через SessionManager
         sessionManager.deactivateSession(chatId);
         notificationService.cancelNotification(chatId);
     }
@@ -220,7 +206,6 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     }
 
     private void showNotificationMenu(long chatId) {
-        // Получаем город из SessionManager
         String city = sessionManager.getSession(chatId)
                 .map(UserSession::getCity)
                 .orElse(null);
@@ -267,7 +252,6 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
             return;
         }
 
-        // Получаем город из SessionManager
         String city = sessionManager.getSession(chatId)
                 .map(UserSession::getCity)
                 .orElse(null);
@@ -313,7 +297,6 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         try {
             Coordinates coords = geocodingService.getCoordinates(messageText);
 
-            // Сохраняем город в SessionManager
             sessionManager.updateCity(chatId, messageText);
             sessionManager.updateState(chatId, UserState.DEFAULT.name());
 
@@ -340,7 +323,6 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         sessionManager.updateState(chatId, UserState.DEFAULT.name());
         String userName = getUserName(chatId);
 
-        // Получаем город из SessionManager
         String city = sessionManager.getSession(chatId)
                 .map(UserSession::getCity)
                 .orElse(null);
@@ -401,7 +383,6 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
     }
 
     private void sendWeatherForPeriod(long chatId, int days) {
-        // Получаем город из SessionManager
         String city = sessionManager.getSession(chatId)
                 .map(UserSession::getCity)
                 .orElse(null);

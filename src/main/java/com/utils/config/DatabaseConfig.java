@@ -7,36 +7,90 @@ import java.sql.SQLException;
 
 public class DatabaseConfig {
     private static HikariDataSource dataSource;
+    private static boolean initialized = false;
 
     static {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:mariadb://localhost:3306/weather_bot_db");
-        config.setUsername("weather_bot_user");
-        config.setPassword(System.getenv("weather_bot_password"));
-        config.setDriverClassName("org.mariadb.jdbc.Driver");
+        initDataSource();
+    }
 
-        // Настройки пула соединений
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(5);
-        config.setConnectionTimeout(30000);
-        config.setIdleTimeout(600000);
-        config.setMaxLifetime(1800000);
+    private static void initDataSource() {
+        try {
+            HikariConfig config = new HikariConfig();
 
-        // Опциональные параметры
-        config.addDataSourceProperty("cachePrepStmts", "true");
-        config.addDataSourceProperty("prepStmtCacheSize", "250");
-        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+            // Настройки подключения
+            config.setJdbcUrl("jdbc:mariadb://localhost:3306/weather_bot_db");
+            config.setUsername("weather_bot_user");
+            config.setPassword(System.getenv("weather_bot_password"));
 
-        dataSource = new HikariDataSource(config);
+            config.setDriverClassName("org.mariadb.jdbc.Driver");
+
+            // Настройки пула
+            config.setMaximumPoolSize(5);
+            config.setMinimumIdle(2);
+            config.setConnectionTimeout(10000);
+            config.setIdleTimeout(300000);
+            config.setMaxLifetime(600000);
+
+            // Дополнительные параметры
+            config.addDataSourceProperty("useSSL", "false");
+            config.addDataSourceProperty("allowPublicKeyRetrieval", "true");
+            config.addDataSourceProperty("serverTimezone", "UTC");
+            config.addDataSourceProperty("characterEncoding", "UTF-8");
+
+            dataSource = new HikariDataSource(config);
+
+            // Проверяем подключение
+            try (Connection testConn = dataSource.getConnection()) {
+                System.out.println("✅ Успешное подключение к MariaDB!");
+                initialized = true;
+            }
+
+        } catch (Exception e) {
+            System.err.println("❌ Ошибка при инициализации пула соединений:");
+            System.err.println("   " + e.getMessage());
+            System.err.println("⚠️ Бот будет работать без базы данных (режим кэша)");
+            dataSource = null;
+            initialized = false;
+        }
     }
 
     public static Connection getConnection() throws SQLException {
+        if (!initialized || dataSource == null || dataSource.isClosed()) {
+            throw new SQLException("Источник данных не инициализирован");
+        }
         return dataSource.getConnection();
     }
 
-    public static void closeDataSource() {
+    public static boolean isAvailable() {
+        return initialized && dataSource != null && !dataSource.isClosed();
+    }
+
+    public static void close() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
+            System.out.println("🔌 Пул соединений закрыт");
         }
+    }
+
+    public static boolean testConnection() {
+        if (!isAvailable()) {
+            return false;
+        }
+
+        try (Connection conn = getConnection()) {
+            return conn != null && !conn.isClosed();
+        } catch (SQLException e) {
+            System.err.println("❌ Ошибка проверки подключения: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static void reinitialize() {
+        close();
+        initDataSource();
+    }
+
+    public static boolean isInitialized() {
+        return initialized;
     }
 }
