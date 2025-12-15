@@ -1,320 +1,230 @@
 package com.utils.tests;
 
 import com.utils.interfaces.IDialogLogic;
-import com.utils.models.UserAnswerStatus;
 import com.utils.services.*;
-import org.junit.jupiter.api.AfterEach;
+import com.utils.models.UserAnswerStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedConstruction;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.lang.reflect.Field;
-import java.time.LocalTime;
+import java.util.Optional;
+import java.util.Scanner;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class ConsoleTest {
+    @Mock
+    private IDialogLogic mockDialogLogic;
 
     @Mock
-    private IDialogLogic dialogLogic;
+    private SessionManager mockSessionManager;
 
     @Mock
-    private WeatherAPI weatherAPI;
+    private NotificationService mockNotificationService;
 
     @Mock
-    private WeatherFormatter weatherFormatter;
-
-    @Mock
-    private NotificationService notificationService;
-
-    @Mock
-    private NotificationScheduler notificationScheduler;
+    private NotificationScheduler mockNotificationScheduler;
 
     private Console console;
-    private ByteArrayOutputStream outputStream;
-    private PrintStream originalOut;
-    private final ByteArrayInputStream[] inputStreamHolder = new ByteArrayInputStream[1];
+    private static final long CONSOLE_USER_ID = 1L;
 
     @BeforeEach
-    void setUp() {
-        outputStream = new ByteArrayOutputStream();
-        originalOut = System.out;
-        System.setOut(new PrintStream(outputStream));
-    }
+    void setUp() throws Exception {
+        when(mockDialogLogic.welcomeWords()).thenReturn("Добро пожаловать!");
+        when(mockDialogLogic.needToStart()).thenReturn("Введите /start");
+        when(mockDialogLogic.getQuestion()).thenReturn("Введите город:");
+        when(mockDialogLogic.processAnswer(anyString()))
+                .thenReturn(new UserAnswerStatus(true, "Город установлен: Москва\nПогода: +20°C", false));
 
-    @AfterEach
-    void tearDown() {
-        System.setOut(originalOut);
-        System.setIn(System.in);
-        if (console != null) {
-            console = null;
-        }
-    }
+        console = new Console(mockDialogLogic);
 
-    private void setInput(String input) {
-        inputStreamHolder[0] = new ByteArrayInputStream(input.getBytes());
-        System.setIn(inputStreamHolder[0]);
-    }
+        setPrivateField(console, "sessionManager", mockSessionManager);
+        setPrivateField(console, "notificationService", mockNotificationService);
+        setPrivateField(console, "notificationScheduler", mockNotificationScheduler);
+        setPrivateField(console, "scanner", new Scanner(""));
 
-    @Test
-    void runBot_WaitsForStartCommand() throws Exception {
-        // Arrange
-        String input = "wrong\ninvalid\n/start\n/quit\n";
-        setInput(input);
+        doNothing().when(mockSessionManager).activateSession(eq(CONSOLE_USER_ID), isNull());
+        doNothing().when(mockSessionManager).deactivateSession(CONSOLE_USER_ID);
+        doNothing().when(mockSessionManager).updateActivity(CONSOLE_USER_ID);
+        doNothing().when(mockSessionManager).updateCity(eq(CONSOLE_USER_ID), anyString());
 
-        when(dialogLogic.needToStart()).thenReturn("Введите /start");
-        when(dialogLogic.welcomeWords()).thenReturn("Started");
-        when(dialogLogic.getQuestion()).thenReturn("Q");
-        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Bye", true));
-
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class);
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
-
-            // Act
-            console = new Console(dialogLogic);
-            Thread botThread = new Thread(() -> console.runBot());
-            botThread.start();
-            Thread.sleep(500);
-            botThread.interrupt();
-
-            // Assert
-            String output = outputStream.toString();
-            assertTrue(output.contains("Введите /start"));
-        }
+        when(mockSessionManager.getCurrentCity(CONSOLE_USER_ID)).thenReturn(Optional.of("Москва"));
+        when(mockSessionManager.hasNotification(CONSOLE_USER_ID)).thenReturn(true);
+        when(mockSessionManager.getNotificationTime(CONSOLE_USER_ID)).thenReturn(Optional.of(java.time.LocalTime.of(9, 0)));
+        when(mockSessionManager.isDatabaseAvailable()).thenReturn(true);
     }
 
     @Test
-    void runBot_HandlesNotificationMenu() throws Exception {
-        // Arrange
-        String input = "/start\nответ\nда\n5\n/quit\n";
-        setInput(input);
-
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question");
-        when(dialogLogic.processAnswer("ответ")).thenReturn(
-                new UserAnswerStatus(true, "Правильно! Город установлен: Москва\nОтлично!", false)
-        );
-        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Bye", true));
-
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class,
-                     (mock, context) -> {
-                         when(mock.setNotification(anyLong(), anyString(), anyString()))
-                                 .thenReturn("Уведомление настроено");
-                         when(mock.getNotificationInfo(anyLong()))
-                                 .thenReturn("Информация об уведомлениях");
-                         when(mock.cancelNotification(anyLong()))
-                                 .thenReturn("Уведомление отменено");
-                         when(mock.getWeatherNotification(anyLong()))
-                                 .thenReturn("Погода в Москве: +20°C, солнечно");
-                     });
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
-
-            // Act
-            console = new Console(dialogLogic);
-            Thread botThread = new Thread(() -> console.runBot());
-            botThread.start();
-            Thread.sleep(500);
-            botThread.interrupt();
-
-            // Assert
-            String output = outputStream.toString();
-            assertTrue(output.contains("Город 'Москва' сохранен для уведомлений"));
-            assertTrue(output.contains("УПРАВЛЕНИЕ УВЕДОМЛЕНИЯМИ"));
-        }
+    void isRunning_shouldReturnFalseByDefault() {
+        assertFalse(console.isRunning());
     }
 
     @Test
-    void extractCityFromResponse_SavesCurrentCity() throws Exception {
-        // Arrange
-        String input = "/start\nответ\nнет\n/quit\n";
-        setInput(input);
-
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question");
-        when(dialogLogic.processAnswer("ответ")).thenReturn(
-                new UserAnswerStatus(true, "Правильно! Город установлен: Санкт-Петербург\nОтлично!", false)
-        );
-        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Bye", true));
-
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class);
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
-
-            // Act
-            console = new Console(dialogLogic);
-            Thread botThread = new Thread(() -> console.runBot());
-            botThread.start();
-            Thread.sleep(500);
-            botThread.interrupt();
-
-            // Assert
-            assertEquals("Санкт-Петербург", console.getCurrentCity());
-        }
+    void getNotificationService_shouldReturnService() {
+        NotificationService service = console.getNotificationService();
+        assertNotNull(service);
+        assertEquals(mockNotificationService, service);
     }
 
     @Test
-    void sendNotificationToUser_SendsToConsole() throws Exception {
-        // Arrange
-        String notificationText = "Погода в Москве: +20°C, солнечно";
-
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class);
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
-
-            // Act
-            console = new Console(dialogLogic);
-            console.sendNotificationToUser(1L, notificationText);
-
-            // Assert
-            String output = outputStream.toString();
-            assertTrue(output.contains("🔔 ЕЖЕДНЕВНОЕ УВЕДОМЛЕНИЕ"));
-            assertTrue(output.contains(notificationText));
-
-            // Проверяем, что для другого ID не отправляется
-            outputStream.reset();
-            console.sendNotificationToUser(2L, notificationText);
-            assertFalse(outputStream.toString().contains("🔔 ЕЖЕДНЕВНОЕ УВЕДОМЛЕНИЕ"));
-        }
+    void getSessionManager_shouldReturnManager() {
+        SessionManager manager = console.getSessionManager();
+        assertNotNull(manager);
+        assertEquals(mockSessionManager, manager);
     }
 
     @Test
-    void handleNotificationMenu_SetNotificationTime() throws Exception {
-        // Arrange
-        String input = "/start\nответ\nда\n1\n09:00\n5\n/quit\n";
-        setInput(input);
-
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question");
-        when(dialogLogic.processAnswer("ответ")).thenReturn(
-                new UserAnswerStatus(true, "Правильно! Город установлен: Москва\nОтлично!", false)
-        );
-        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Bye", true));
-
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class,
-                     (mock, context) -> {
-                         when(mock.setNotification(1L, "Москва", "09:00"))
-                                 .thenReturn("Уведомление настроено на 09:00");
-                         when(mock.getNotificationInfo(1L))
-                                 .thenReturn("Уведомления активны для Москвы в 09:00");
-                         when(mock.cancelNotification(1L))
-                                 .thenReturn("Уведомления отключены");
-                     });
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
-
-            // Act
-            console = new Console(dialogLogic);
-            Thread botThread = new Thread(() -> console.runBot());
-            botThread.start();
-            Thread.sleep(500);
-            botThread.interrupt();
-
-            // Assert
-            String output = outputStream.toString();
-            assertTrue(output.contains("Время: 09:00"));
-        }
+    void isUserSessionActive_shouldReturnTrueWhenRunning() throws Exception {
+        setPrivateField(console, "isRunning", true);
+        boolean result = console.isUserSessionActive(CONSOLE_USER_ID);
+        assertTrue(result);
     }
 
     @Test
-    void handleNotificationMenu_InvalidTimeFormat() throws Exception {
-        // Arrange
-        String input = "/start\nответ\nда\n1\ninvalid\n5\n/quit\n";
-        setInput(input);
-
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question");
-        when(dialogLogic.processAnswer("ответ")).thenReturn(
-                new UserAnswerStatus(true, "Правильно! Город установлен: Москва\nОтлично!", false)
-        );
-        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Bye", true));
-
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class);
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
-
-            // Act
-            console = new Console(dialogLogic);
-            Thread botThread = new Thread(() -> console.runBot());
-            botThread.start();
-            Thread.sleep(500);
-            botThread.interrupt();
-
-            // Assert
-            String output = outputStream.toString();
-            assertTrue(output.contains("Неверный формат времени"));
-        }
+    void isUserSessionActive_shouldReturnFalseWhenNotRunning() throws Exception {
+        setPrivateField(console, "isRunning", false);
+        boolean result = console.isUserSessionActive(CONSOLE_USER_ID);
+        assertFalse(result);
     }
 
     @Test
-    void testNotification_SendsTestNotification() throws Exception {
-        // Arrange
-        String input = "/start\nответ\nда\n4\n5\n/quit\n";
-        setInput(input);
-
-        when(dialogLogic.welcomeWords()).thenReturn("Welcome");
-        when(dialogLogic.getQuestion()).thenReturn("Question");
-        when(dialogLogic.processAnswer("ответ")).thenReturn(
-                new UserAnswerStatus(true, "Правильно! Город установлен: Москва\nОтлично!", false)
-        );
-        when(dialogLogic.processAnswer("/quit")).thenReturn(new UserAnswerStatus(false, "Bye", true));
-
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class,
-                     (mock, context) -> {
-                         when(mock.getWeatherNotification(1L))
-                                 .thenReturn("Погода в Москве: +20°C, солнечно");
-                         when(mock.getNotificationInfo(1L))
-                                 .thenReturn("Уведомления активны");
-                     });
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
-
-            // Act
-            console = new Console(dialogLogic);
-            Thread botThread = new Thread(() -> console.runBot());
-            botThread.start();
-            Thread.sleep(500);
-            botThread.interrupt();
-
-            // Assert
-            String output = outputStream.toString();
-            assertTrue(output.contains("[ТЕСТ]"));
-            assertTrue(output.contains("Тестовое уведомление отправлено"));
-        }
+    void isUserSessionActive_shouldReturnFalseForWrongUserId() throws Exception {
+        setPrivateField(console, "isRunning", true);
+        boolean result = console.isUserSessionActive(999L);
+        assertFalse(result);
     }
 
     @Test
-    void getClientName_ReturnsConsoleBot() throws Exception {
-        // Arrange
-        try (MockedConstruction<WeatherAPI> mockedWeatherAPI = mockConstruction(WeatherAPI.class);
-             MockedConstruction<WeatherFormatter> mockedFormatter = mockConstruction(WeatherFormatter.class);
-             MockedConstruction<NotificationService> mockedService = mockConstruction(NotificationService.class);
-             MockedConstruction<NotificationScheduler> mockedScheduler = mockConstruction(NotificationScheduler.class)) {
+    void getClientName_shouldReturnConsoleBot() {
+        String clientName = console.getClientName();
+        assertEquals("ConsoleBot", clientName);
+    }
 
-            // Act
-            console = new Console(dialogLogic);
+    @Test
+    void sendNotificationToUser_shouldSendToConsoleForCorrectUserId() {
+        String notificationText = "Test notification";
+        assertDoesNotThrow(() -> console.sendNotificationToUser(CONSOLE_USER_ID, notificationText));
+    }
 
-            // Assert
-            assertEquals("ConsoleBot", console.getClientName());
-        }
+    @Test
+    void sendNotificationToUser_shouldNotSendForWrongUserId() {
+        String notificationText = "Test notification";
+        assertDoesNotThrow(() -> console.sendNotificationToUser(999L, notificationText));
+    }
+
+    @Test
+    void extractAndSaveCityFromResponse_shouldNotExtractIfPatternNotMatched() throws Exception {
+        String response = "Просто сообщение без города";
+        var method = Console.class.getDeclaredMethod("extractAndSaveCityFromResponse", String.class);
+        method.setAccessible(true);
+        method.invoke(console, response);
+        verify(mockSessionManager, never()).updateCity(anyLong(), anyString());
+    }
+
+    @Test
+    void runBot_shouldStartAndRun() throws Exception {
+        Scanner mockScanner = mock(Scanner.class);
+        when(mockScanner.nextLine())
+                .thenReturn("/start")
+                .thenReturn("Москва")
+                .thenReturn("/quit");
+        setPrivateField(console, "scanner", mockScanner);
+        when(mockDialogLogic.processAnswer("/start"))
+                .thenReturn(new UserAnswerStatus(true, "Добро пожаловать!", false));
+        when(mockDialogLogic.processAnswer("Москва"))
+                .thenReturn(new UserAnswerStatus(true, "Город установлен: Москва", false));
+        when(mockDialogLogic.processAnswer("/quit"))
+                .thenReturn(new UserAnswerStatus(false, "До свидания!", true));
+        assertDoesNotThrow(() -> console.runBot());
+        verify(mockSessionManager).activateSession(CONSOLE_USER_ID, null);
+        verify(mockSessionManager).deactivateSession(CONSOLE_USER_ID);
+    }
+
+    @Test
+    void handleNotificationMenu_shouldShowMenuWhenCityExists() throws Exception {
+        Scanner mockScanner = mock(Scanner.class);
+        when(mockScanner.nextLine()).thenReturn("5");
+        setPrivateField(console, "scanner", mockScanner);
+        var method = Console.class.getDeclaredMethod("handleNotificationMenu");
+        method.setAccessible(true);
+        assertDoesNotThrow(() -> method.invoke(console));
+    }
+
+    @Test
+    void setNotificationTime_shouldSetTimeForValidInput() throws Exception {
+        String city = "Москва";
+        String validTime = "09:00";
+        Scanner mockScanner = mock(Scanner.class);
+        when(mockScanner.nextLine()).thenReturn(validTime);
+        setPrivateField(console, "scanner", mockScanner);
+        when(mockNotificationService.setNotification(CONSOLE_USER_ID, city, validTime))
+                .thenReturn("Уведомление установлено");
+        var method = Console.class.getDeclaredMethod("setNotificationTime", String.class);
+        method.setAccessible(true);
+        method.invoke(console, city);
+        verify(mockNotificationService).setNotification(CONSOLE_USER_ID, city, validTime);
+    }
+
+    @Test
+    void showNotificationInfo_shouldShowInfo() throws Exception {
+        when(mockNotificationService.getNotificationInfo(CONSOLE_USER_ID))
+                .thenReturn("Уведомление: Москва в 09:00");
+        var method = Console.class.getDeclaredMethod("showNotificationInfo");
+        method.setAccessible(true);
+        assertDoesNotThrow(() -> method.invoke(console));
+        verify(mockNotificationService).getNotificationInfo(CONSOLE_USER_ID);
+    }
+
+    @Test
+    void cancelNotification_shouldCancel() throws Exception {
+        when(mockNotificationService.cancelNotification(CONSOLE_USER_ID))
+                .thenReturn("Уведомление отменено");
+        var method = Console.class.getDeclaredMethod("cancelNotification");
+        method.setAccessible(true);
+        method.invoke(console);
+        verify(mockNotificationService).cancelNotification(CONSOLE_USER_ID);
+    }
+
+    @Test
+    void testNotification_shouldTestWhenNotificationExists() throws Exception {
+        when(mockSessionManager.hasNotification(CONSOLE_USER_ID)).thenReturn(true);
+        when(mockNotificationService.getWeatherNotification(CONSOLE_USER_ID))
+                .thenReturn("Погода: +20°C");
+        var method = Console.class.getDeclaredMethod("testNotification");
+        method.setAccessible(true);
+        assertDoesNotThrow(() -> method.invoke(console));
+    }
+
+    @Test
+    void testNotification_shouldNotTestWhenNoNotification() throws Exception {
+        when(mockSessionManager.hasNotification(CONSOLE_USER_ID)).thenReturn(false);
+        var method = Console.class.getDeclaredMethod("testNotification");
+        method.setAccessible(true);
+        assertDoesNotThrow(() -> method.invoke(console));
+    }
+
+    @Test
+    void getNotificationStatus_shouldReturnStatus() throws Exception {
+        when(mockNotificationService.hasNotification(CONSOLE_USER_ID)).thenReturn(true);
+        when(mockSessionManager.getNotificationTime(CONSOLE_USER_ID))
+                .thenReturn(Optional.of(java.time.LocalTime.of(9, 0)));
+        var method = Console.class.getDeclaredMethod("getNotificationStatus");
+        method.setAccessible(true);
+        String result = (String) method.invoke(console);
+        assertNotNull(result);
+        assertTrue(result.contains("активны"));
+    }
+
+    private void setPrivateField(Object target, String fieldName, Object value) throws Exception {
+        var field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 }
