@@ -1,5 +1,6 @@
 package com.utils.services;
 
+import com.utils.interfaces.INotificationClient;
 import com.utils.models.Notification;
 
 import java.time.LocalDate;
@@ -9,12 +10,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class NotificationScheduler implements Runnable {
     private final NotificationService notificationService;
-    private final TelegramBot telegramBot;
+    private final INotificationClient notificationClient;
     private final ConcurrentHashMap<Long, LocalDate> lastNotificationSent = new ConcurrentHashMap<>();
 
-    public NotificationScheduler(NotificationService notificationService, TelegramBot telegramBot) {
+    public NotificationScheduler(NotificationService notificationService, INotificationClient notificationClient) {
         this.notificationService = notificationService;
-        this.telegramBot = telegramBot;
+        this.notificationClient = notificationClient;
     }
 
     @Override
@@ -38,7 +39,7 @@ public class NotificationScheduler implements Runnable {
 
             for (Long chatId : activeChats) {
                 // Проверяем активна ли сессия пользователя через телеграм бот
-                if (telegramBot.isUserSessionActive(chatId)) {
+                if (notificationClient.isUserSessionActive(chatId)) {
                     Notification notification = notificationService.getNotification(chatId);
                     if (notification == null) continue;
 
@@ -57,7 +58,7 @@ public class NotificationScheduler implements Runnable {
 
                         if (notificationText != null && !notificationText.startsWith("❌")) {
                             // Используем метод телеграм бота для отправки сообщения
-                            telegramBot.sendNotificationToUser(chatId, notificationText);
+                            notificationClient.sendNotificationToUser(chatId, notificationText);
                             lastNotificationSent.put(chatId, today);
                             System.out.println("Отправлено уведомление для chatId: " + chatId + " в " + now);
                         }

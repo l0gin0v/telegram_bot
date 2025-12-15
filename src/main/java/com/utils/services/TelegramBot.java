@@ -1,5 +1,6 @@
 package com.utils.services;
 
+import com.utils.interfaces.INotificationClient;
 import com.utils.models.Coordinates;
 
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -13,7 +14,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.*;
 
-public class TelegramBot extends TelegramLongPollingBot {
+public class TelegramBot extends TelegramLongPollingBot implements INotificationClient {
     private final String botUsername;
     private final String botToken;
     private final WeatherAPI weatherAPI;
@@ -443,5 +444,10 @@ public class TelegramBot extends TelegramLongPollingBot {
     @Override
     public String getBotToken() {
         return botToken;
+    }
+
+    @Override
+    public String getClientName() {
+        return "TelegramBot";
     }
 }
