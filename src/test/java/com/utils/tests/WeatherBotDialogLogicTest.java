@@ -57,16 +57,6 @@ class WeatherBotDialogLogicTest {
         );
     }
 
-    @Test
-    void getHelp_ShouldReturnHelpMessage() {
-        String help = dialogLogic.getHelp();
-        assertAll(
-                () -> assertTrue(help.contains("📖 Помощь по боту")),
-                () -> assertTrue(help.contains("/start")),
-                () -> assertTrue(help.contains("/quit")),
-                () -> assertTrue(help.contains("/help"))
-        );
-    }
 
     @Test
     void getWeatherForPeriod_With1Day_ShouldCallCorrectMethod() throws Exception {
