@@ -1,7 +1,6 @@
 package com.utils.services;
 
 import com.utils.models.Coordinates;
-import com.utils.models.Notification;
 
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -11,7 +10,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRem
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -22,6 +20,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final WeatherBotDialogLogic weatherBotDialogLogic;
     private final Geocoding geocodingService;
     private final NotificationService notificationService;
+    private final NotificationScheduler notificationScheduler;
 
     // Храним города пользователей
     private final Map<Long, String> userCities = new HashMap<>();
@@ -49,20 +48,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         WeatherFormatter weatherFormatter = new WeatherFormatter(weatherAPI);
         this.notificationService = new NotificationService(weatherAPI, weatherFormatter);
+        this.notificationScheduler = new NotificationScheduler(notificationService, this);
 
-        Thread notificationThread = new Thread(() -> {
-            while (true) {
-                try {
-                    checkAndSendNotifications();
-                    Thread.sleep(30000);
-                } catch (InterruptedException e) {
-                    break;
-                } catch (Exception e) {
-                    System.err.println("Ошибка в notificationThread: " + e.getMessage());
-                }
-            }
-        });
-
+        Thread notificationThread = new Thread(notificationScheduler);
         notificationThread.setDaemon(true);
         notificationThread.start();
     }
@@ -152,57 +140,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         // userCities.remove(chatId);
     }
 
-    private void checkAndSendNotifications() {
-        try {
-            // Получаем список активных уведомлений
-            Set<Long> activeChats = notificationService.getActiveNotifications();
-
-            for (Long chatId : activeChats) {
-                // Проверяем активна ли сессия пользователя
-                if (userSessions.getOrDefault(chatId, false)) {
-                    // Получаем информацию об уведомлении
-                    Notification notification = notificationService.getNotification(chatId);
-                    if (notification == null) continue;
-
-                    // Проверяем, не отправляли ли уже сегодня
-                    LocalDate today = LocalDate.now();
-                    LocalDate lastSent = lastNotificationSent.get(chatId);
-
-                    if (lastSent != null && lastSent.equals(today)) {
-                        continue; // Уже отправляли сегодня
-                    }
-
-                    // Проверяем время - пора ли отправлять?
-                    LocalTime now = LocalTime.now();
-                    LocalTime notificationTime = notification.getTime();
-
-                    // Отправляем если текущее время +/- 1 минута от времени уведомления
-                    if (isTimeToSend(now, notificationTime)) {
-                        // Получаем текст уведомления
-                        String notificationText = notificationService.getWeatherNotification(chatId);
-
-                        if (notificationText != null && !notificationText.startsWith("❌")) {
-                            // Отправляем уведомление
-                            sendMessage(chatId, notificationText, KeyboardFactory.createMainWeatherKeyboard());
-                            lastNotificationSent.put(chatId, today); // Запоминаем отправку
-                            System.out.println("Отправлено уведомление для chatId: " + chatId + " в " + now);
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Ошибка при проверке уведомлений: " + e.getMessage());
-        }
-    }
-
-    private boolean isTimeToSend(LocalTime now, LocalTime notificationTime) {
-        // Разница в секундах
-        long nowSeconds = now.toSecondOfDay();
-        long notificationSeconds = notificationTime.toSecondOfDay();
-        long diff = Math.abs(nowSeconds - notificationSeconds);
-
-        // Отправляем если разница меньше 60 секунд (1 минута)
-        return diff <= 60;
+    public boolean isUserSessionActive(long chatId) {
+        return userSessions.getOrDefault(chatId, false);
     }
 
     private void sendSessionInactiveMessage(long chatId) {
@@ -341,35 +280,10 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private void handleNotificationMenuInput(long chatId, String messageText) {
-        switch (messageText) {
-            case "⏰ Установить время":
-                askForNotificationTime(chatId);
-                break;
-            case "ℹ️ Информация":
-                String info = notificationService.getNotificationInfo(chatId);
-                sendMessage(chatId, info, KeyboardFactory.createNotificationKeyboard());
-                break;
-            case "❌ Отменить":
-                String result = notificationService.cancelNotification(chatId);
-                sendMessage(chatId, result, KeyboardFactory.createMainWeatherKeyboard());
-                break;
-            case "↩️ Назад":
-                sendWelcomeMessage(chatId);
-                break;
-            default:
-                // Если это не кнопка, возможно пользователь ввел время напрямую
-                // Проверяем формат времени HH:MM
-                if (isValidTimeFormat(messageText)) {
-                    handleNotificationTimeInput(chatId, messageText);
-                } else {
-                    sendMessage(chatId,
-                            "🤔 Не понял команду. Используйте кнопки или введите время в формате HH:MM",
-                            KeyboardFactory.createMainWeatherKeyboard()
-                    );
-                }
-        }
+    public void sendNotificationToUser(long chatId, String notificationText) {
+        sendMessage(chatId, notificationText, KeyboardFactory.createMainWeatherKeyboard());
     }
+
 
     private boolean isValidTimeFormat(String time) {
         return time.matches("^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$");
