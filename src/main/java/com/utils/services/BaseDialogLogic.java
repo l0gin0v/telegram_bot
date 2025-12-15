@@ -41,7 +41,7 @@ public abstract class BaseDialogLogic implements IDialogLogic {
     public abstract UserAnswerStatus processAnswer(String answer);
     public abstract String getHelp();
 
-    protected String getQuickWeatherForCity(String city) {
+    public String getQuickWeatherForCity(String city) {
         try {
             return weatherFormatter.getQuickWeather(city);
         } catch (Exception e) {
@@ -83,7 +83,7 @@ public abstract class BaseDialogLogic implements IDialogLogic {
         }
     }
 
-    protected String formatWeatherForPeriod(String city, int days) {
+    public String formatWeatherForPeriod(String city, int days) {
         try {
             switch (days) {
                 case 1:

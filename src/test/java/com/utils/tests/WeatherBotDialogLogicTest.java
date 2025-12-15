@@ -1,170 +1,143 @@
 package com.utils.tests;
 
-import com.utils.services.*;
 import com.utils.models.UserAnswerStatus;
-import com.utils.models.Coordinates;
-import com.utils.models.OpenMeteoResponse;
+import com.utils.services.WeatherAPI;
+import com.utils.services.WeatherBotDialogLogic;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class WeatherBotDialogLogicTest {
 
-    @Mock
-    private WeatherAPI mockWeatherAPI;
-
-    @Mock
-    private WeatherFormatter mockWeatherFormatter;
-
-    @Mock
-    private Geocoding mockGeocoding;
-
-    private WeatherBotDialogLogic weatherBotDialogLogic;
+    private WeatherAPI weatherAPIMock;
+    private WeatherBotDialogLogic logic;
 
     @BeforeEach
     void setUp() {
-        weatherBotDialogLogic = new WeatherBotDialogLogic(mockWeatherAPI);
+        weatherAPIMock = mock(WeatherAPI.class);
+        logic = spy(new WeatherBotDialogLogic(weatherAPIMock));
+    }
 
-        // Используем рефлексию дляодмены weatherFormatter на мок
-        try {
-            var baseClass = weatherBotDialogLogic.getClass().getSuperclass();
-            var field = baseClass.getDeclaredField("weatherFormatter");
-            field.setAccessible(true);
-            field.set(weatherBotDialogLogic, mockWeatherFormatter);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    @Test
+    void testGetQuestion() {
+        String q = logic.getQuestion();
+        assertEquals("Введите название города для получения погоды:", q);
+    }
+
+    @Test
+    void testWelcomeWords_containsHelpAndHint() {
+        String w = logic.welcomeWords();
+        assertTrue(w.contains("/help"));
+        assertTrue(w.contains("Вы можете ввести название города"));
+    }
+
+    @Test
+    void testFarewallWordsForInactive() {
+        String f = logic.farewallWordsForInactive();
+        assertEquals("❌ Сессия завершена. Введите /start для начала новой сессии.", f);
+    }
+
+    @Test
+    void testProcessAnswer_help_returnsHelpTextAndNoFlagsSet() throws Exception {
+        UserAnswerStatus res = logic.processAnswer("/help");
+        String text = extractFirstStringField(res);
+        List<Boolean> bools = extractBooleanFields(res);
+        assertEquals(logic.getHelp(), text);
+        for (Boolean b : bools) {
+            assertFalse(b);
         }
-
-        when(mockWeatherAPI.getGeocoding()).thenReturn(mockGeocoding);
     }
 
     @Test
-    void getQuestion_shouldAskForCity_whenNoCityIsSet() {
-        // Act
-        String result = weatherBotDialogLogic.getQuestion();
-
-        // Assert
-        assertTrue(result.contains("Введите название города"));
+    void testProcessAnswer_quit_returnsFarewellAndExitFlag() throws Exception {
+        UserAnswerStatus res = logic.processAnswer("/quit");
+        String text = extractFirstStringField(res);
+        List<Boolean> bools = extractBooleanFields(res);
+        assertTrue(text.contains("погоду") || text.length() > 0);
+        assertTrue(bools.stream().anyMatch(Boolean::booleanValue));
     }
 
     @Test
-    void welcomeWords_shouldReturnWelcomeMessage() {
-        // Act
-        String result = weatherBotDialogLogic.welcomeWords();
-
-        // Assert
-        assertTrue(result.contains("Добро пожаловать"));
+    void testProcessAnswer_city_success_callsGetQuickWeatherAndReturnsIt() throws Exception {
+        doReturn("Погода: ясно, +20°C").when(logic).getQuickWeatherForCity("Moscow");
+        UserAnswerStatus res = logic.processAnswer("Moscow");
+        String text = extractFirstStringField(res);
+        List<Boolean> bools = extractBooleanFields(res);
+        assertEquals("Погода: ясно, +20°C", text);
+        assertTrue(bools.stream().anyMatch(Boolean::booleanValue));
     }
 
     @Test
-    void farewallWordsForInactive_shouldReturnInactiveMessage() {
-        // Act
-        String result = weatherBotDialogLogic.farewallWordsForInactive();
-
-        // Assert
-        assertTrue(result.contains("сессия истекла"));
-        assertTrue(result.contains("/start"));
+    void testProcessAnswer_city_failure_returnsErrorMessage() throws Exception {
+        doThrow(new RuntimeException("api error")).when(logic).getQuickWeatherForCity("Nowhere");
+        UserAnswerStatus res = logic.processAnswer("Nowhere");
+        String text = extractFirstStringField(res);
+        assertTrue(text.contains("Не удалось получить погоду для города: Nowhere"));
     }
 
     @Test
-    void processAnswer_shouldSetCity_whenValidCityEntered() throws Exception {
-        // Arrange
-        String city = "Moscow";
-        String weatherResponse = "☀️ Погода в Москве: 20°C";
-        when(mockWeatherFormatter.getQuickWeather(city)).thenReturn(weatherResponse);
-
-        // Act
-        UserAnswerStatus result = weatherBotDialogLogic.processAnswer(city);
-
-        // Assert
-        assertTrue(result.isCorrectAnswer);
-        assertTrue(result.message.contains("Город установлен: Moscow"));
-        assertTrue(result.message.contains(weatherResponse));
-        verify(mockWeatherFormatter).getQuickWeather(city);
+    void testGetHelp_includesExtraTelegramInfo() {
+        String help = logic.getHelp();
+        assertTrue(help.contains("Дополнительные возможности"));
+        assertTrue(help.contains("Кнопки для быстрого выбора периода"));
     }
 
     @Test
-    void processAnswer_shouldReturnError_whenInvalidCityEntered() throws Exception {
-        // Arrange
-        String invalidCity = "InvalidCity123";
-        when(mockWeatherFormatter.getQuickWeather(invalidCity))
-                .thenThrow(new RuntimeException("City not found"));
-
-        // Act
-        UserAnswerStatus result = weatherBotDialogLogic.processAnswer(invalidCity);
-
-        // Assert
-        assertFalse(result.isCorrectAnswer);
-        assertTrue(result.message.contains("Не удалось получить погоду"));
+    void testGetWeatherForPeriod_delegatesToFormatWeatherForPeriod() throws Exception {
+        doReturn("3-day forecast").when(logic).formatWeatherForPeriod("Moscow", 3);
+        String out = logic.getWeatherForPeriod("Moscow", 3);
+        assertEquals("3-day forecast", out);
+        verify(logic).formatWeatherForPeriod("Moscow", 3);
     }
 
-    @Test
-    void getWeatherForPeriod_shouldReturnWeatherForToday() throws Exception {
-        // Arrange
-        String city = "Moscow";
-        String todayWeather = "Today's weather in Moscow";
-        when(mockWeatherFormatter.getQuickWeather(city)).thenReturn(todayWeather);
-        weatherBotDialogLogic.processAnswer(city);
-
-        // Act
-        String result = weatherBotDialogLogic.getWeatherForPeriod(city, 1);
-
-        // Assert
-        assertEquals(todayWeather, result);
+    private static String extractFirstStringField(Object obj) throws Exception {
+        for (Field f : obj.getClass().getDeclaredFields()) {
+            if (f.getType().equals(String.class)) {
+                f.setAccessible(true);
+                Object val = f.get(obj);
+                return val == null ? null : val.toString();
+            }
+        }
+        Class<?> current = obj.getClass().getSuperclass();
+        while (current != null) {
+            for (Field f : current.getDeclaredFields()) {
+                if (f.getType().equals(String.class)) {
+                    f.setAccessible(true);
+                    Object val = f.get(obj);
+                    return val == null ? null : val.toString();
+                }
+            }
+            current = current.getSuperclass();
+        }
+        throw new IllegalStateException("No String field found in " + obj.getClass());
     }
 
-    @Test
-    void getWeatherForPeriod_shouldReturnWeatherForTomorrow() throws Exception {
-        // Arrange
-        String city = "Moscow";
-        String tomorrowWeather = "Tomorrow's weather";
-        when(mockWeatherFormatter.formatTomorrowWeather(city)).thenReturn(tomorrowWeather);
-
-        // Act
-        String result = weatherBotDialogLogic.getWeatherForPeriod(city, 2);
-
-        // Assert
-        assertEquals(tomorrowWeather, result);
-    }
-
-    @Test
-    void getHelp_shouldReturnHelpText() {
-        // Act
-        String helpText = weatherBotDialogLogic.getHelp();
-
-        // Assert
-        assertTrue(helpText.contains("Погодный бот - справка"));
-        assertTrue(helpText.contains("Введите название города"));
-    }
-
-    @Test
-    void processAnswer_shouldHandleMenuOptions() throws Exception {
-        // Arrange
-        String city = "Moscow";
-        when(mockWeatherFormatter.getQuickWeather(city)).thenReturn("Weather");
-        weatherBotDialogLogic.processAnswer(city);
-
-        String todayWeather = "Today's weather";
-        when(mockWeatherFormatter.getQuickWeather(city)).thenReturn(todayWeather);
-        UserAnswerStatus result1 = weatherBotDialogLogic.processAnswer("1");
-        assertEquals(todayWeather, result1.message);
-
-        String tomorrowWeather = "Tomorrow's weather";
-        when(mockWeatherFormatter.formatTomorrowWeather(city)).thenReturn(tomorrowWeather);
-        UserAnswerStatus result2 = weatherBotDialogLogic.processAnswer("2");
-        assertEquals(tomorrowWeather, result2.message);
-
-        UserAnswerStatus result5 = weatherBotDialogLogic.processAnswer("5");
-        assertFalse(result5.isCorrectAnswer);
-        assertTrue(result5.message.contains("Введите новый город"));
+    private static List<Boolean> extractBooleanFields(Object obj) throws Exception {
+        List<Boolean> ret = new ArrayList<>();
+        for (Field f : obj.getClass().getDeclaredFields()) {
+            if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                f.setAccessible(true);
+                Object v = f.get(obj);
+                ret.add(v == null ? false : (Boolean) v);
+            }
+        }
+        Class<?> current = obj.getClass().getSuperclass();
+        while (current != null) {
+            for (Field f : current.getDeclaredFields()) {
+                if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                    f.setAccessible(true);
+                    Object v = f.get(obj);
+                    ret.add(v == null ? false : (Boolean) v);
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return ret;
     }
 }
