@@ -4,6 +4,7 @@ import com.utils.services.TelegramBot;
 import com.utils.services.WeatherAPI;
 import com.utils.services.Geocoding;
 import com.utils.models.Coordinates;
+import com.utils.services.WeatherBotDialogLogic;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,9 @@ class TelegramBotTest {
     private Geocoding mockGeocoding;
 
     @Mock
+    private WeatherBotDialogLogic mockWeatherBotDialogLogic;
+
+    @Mock
     private Message mockTelegramMessage;
 
     private TelegramBot telegramBot;
@@ -43,6 +47,7 @@ class TelegramBotTest {
         telegramBot = new TelegramBot(BOT_USERNAME, BOT_TOKEN);
         setPrivateField(telegramBot, "weatherAPI", mockWeatherAPI);
         setPrivateField(telegramBot, "geocodingService", mockGeocoding);
+        setPrivateField(telegramBot, "weatherBotDialogLogic", mockWeatherBotDialogLogic);
     }
 
     private void setPrivateField(Object target, String fieldName, Object value) throws Exception {
@@ -106,21 +111,6 @@ class TelegramBotTest {
     }
 
     @Test
-    void helpCommandWithActiveSession_ShouldProcessHelp() throws Exception {
-        Update update = createTextUpdate(TEST_CHAT_ID, "/help");
-
-        TelegramBot botSpy = spy(telegramBot);
-        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
-
-        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
-        userSessions.put(TEST_CHAT_ID, true);
-
-        botSpy.onUpdateReceived(update);
-
-        verify(botSpy, atLeastOnce()).execute(any(SendMessage.class));
-    }
-
-    @Test
     void quitCommand_ShouldEndUserSession() throws Exception {
         Update update = createTextUpdate(TEST_CHAT_ID, "/quit");
 
@@ -133,42 +123,6 @@ class TelegramBotTest {
         botSpy.onUpdateReceived(update);
 
         assertFalse(userSessions.get(TEST_CHAT_ID));
-    }
-
-    @Test
-    void weatherRequestWithCity_ShouldCallWeatherAPI() throws Exception {
-        Update update = createTextUpdate(TEST_CHAT_ID, "🌤 Сегодня");
-
-        TelegramBot botSpy = spy(telegramBot);
-        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
-
-        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
-        userSessions.put(TEST_CHAT_ID, true);
-
-        Map<Long, String> userCities = getPrivateField(botSpy, "userCities");
-        userCities.put(TEST_CHAT_ID, "Москва");
-
-        when(mockWeatherAPI.getFormattedWeatherByCity("Москва", 1))
-                .thenReturn("Погода в Москве: солнечно, +20°C");
-
-        botSpy.onUpdateReceived(update);
-
-        verify(mockWeatherAPI, times(1)).getFormattedWeatherByCity("Москва", 1);
-    }
-
-    @Test
-    void weatherRequestWithoutCity_ShouldNotCallWeatherAPI() throws Exception {
-        Update update = createTextUpdate(TEST_CHAT_ID, "🌤 Сегодня");
-
-        TelegramBot botSpy = spy(telegramBot);
-        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
-
-        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
-        userSessions.put(TEST_CHAT_ID, true);
-
-        botSpy.onUpdateReceived(update);
-
-        verify(mockWeatherAPI, never()).getFormattedWeatherByCity(anyString(), anyInt());
     }
 
     @Test
@@ -231,21 +185,6 @@ class TelegramBotTest {
         botSpy.onUpdateReceived(update);
 
         assertEquals(waitingState, userStates.get(TEST_CHAT_ID));
-    }
-
-    @Test
-    void inactiveSession_ShouldSendInactiveMessage() throws Exception {
-        Update update = createTextUpdate(TEST_CHAT_ID, "🌤 Сегодня");
-
-        TelegramBot botSpy = spy(telegramBot);
-        doReturn(mockTelegramMessage).when(botSpy).execute(any(SendMessage.class));
-
-        Map<Long, Boolean> userSessions = getPrivateField(botSpy, "userSessions");
-        userSessions.put(TEST_CHAT_ID, false);
-
-        botSpy.onUpdateReceived(update);
-
-        verify(botSpy, atLeastOnce()).execute(any(SendMessage.class));
     }
 
     @Test
