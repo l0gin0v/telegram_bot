@@ -20,7 +20,10 @@ public class DatabaseConfig {
             // Настройки подключения
             config.setJdbcUrl("jdbc:mariadb://localhost:3306/weather_bot_db");
             config.setUsername("weather_bot_user");
-            config.setPassword(System.getenv("weather_bot_password"));
+
+            String weather_bot_password = System.getenv("weather_bot_password");
+
+            config.setPassword(weather_bot_password);
 
             config.setDriverClassName("org.mariadb.jdbc.Driver");
 
