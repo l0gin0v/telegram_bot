@@ -9,10 +9,10 @@ import java.util.Scanner;
 public class Console implements IConsole, INotificationClient {
     private final IDialogLogic dialogLogic;
     private final Scanner scanner;
+    private final SessionManager sessionManager;
     private final NotificationService notificationService;
     private final NotificationScheduler notificationScheduler;
     private boolean isRunning;
-    private String currentCity;
     private static final long CONSOLE_USER_ID = 1L; // Уникальный ID для консольной сессии
 
     public Console(IDialogLogic dialogLogic) {
@@ -20,10 +20,17 @@ public class Console implements IConsole, INotificationClient {
         this.scanner = new Scanner(System.in);
         this.isRunning = false;
 
+        // Создаем менеджер сессий
+        this.sessionManager = new SessionManager();
+
         // Инициализация сервисов уведомлений
         WeatherAPI weatherAPI = new WeatherAPI();
         WeatherFormatter weatherFormatter = new WeatherFormatter(weatherAPI);
-        this.notificationService = new NotificationService(weatherAPI, weatherFormatter);
+        this.notificationService = new NotificationService(
+                weatherAPI,
+                weatherFormatter,
+                sessionManager  // Передаем SessionManager
+        );
 
         // Создаем планировщик с текущим экземпляром как NotificationClient
         this.notificationScheduler = new NotificationScheduler(notificationService, this);
@@ -70,6 +77,9 @@ public class Console implements IConsole, INotificationClient {
         System.out.println(dialogLogic.welcomeWords());
         System.out.println("\nℹ️ Доступны ежедневные уведомления!");
         System.out.println("Для настройки введите 'уведомления' в главном меню");
+
+        // Активируем сессию для консольного пользователя
+        sessionManager.activateSession(CONSOLE_USER_ID, null);
     }
 
     @Override
@@ -96,6 +106,9 @@ public class Console implements IConsole, INotificationClient {
                 System.out.print("\n>>> ");
                 String userInput = scanner.nextLine().trim();
 
+                // Обновляем активность пользователя
+                sessionManager.updateActivity(CONSOLE_USER_ID);
+
                 // Обработка команд уведомлений
                 if (userInput.equalsIgnoreCase("уведомления") ||
                         userInput.equalsIgnoreCase("notifications")) {
@@ -107,10 +120,9 @@ public class Console implements IConsole, INotificationClient {
                 UserAnswerStatus userAnswerStatus = dialogLogic.processAnswer(userInput);
                 System.out.println("\n" + userAnswerStatus.message);
 
-                // Если установлен город, сохраняем его для уведомлений
-                if (userAnswerStatus.isCorrectAnswer && currentCity == null) {
-                    // Пытаемся извлечь город из ответа
-                    extractCityFromResponse(userAnswerStatus.message);
+                // Если установлен город, сохраняем его в сессии
+                if (userAnswerStatus.isCorrectAnswer) {
+                    extractAndSaveCityFromResponse(userAnswerStatus.message);
                 }
 
                 questionAnswered = userAnswerStatus.isCorrectAnswer;
@@ -118,18 +130,22 @@ public class Console implements IConsole, INotificationClient {
             }
         }
 
+        // Завершаем сессию при выходе
+        sessionManager.deactivateSession(CONSOLE_USER_ID);
         scanner.close();
         System.out.println("\n👋 Бот завершил работу.");
     }
 
-    private void extractCityFromResponse(String response) {
+    private void extractAndSaveCityFromResponse(String response) {
         // Простая логика извлечения города из сообщения
         if (response.contains("Город установлен: ")) {
             String[] parts = response.split("Город установлен: ");
             if (parts.length > 1) {
-                String cityPart = parts[1].split("\n")[0].trim();
-                currentCity = cityPart;
-                System.out.println("\n✅ Город '" + currentCity + "' сохранен для уведомлений");
+                String city = parts[1].split("\n")[0].trim();
+
+                // Сохраняем город в сессии
+                sessionManager.updateCity(CONSOLE_USER_ID, city);
+                System.out.println("\n✅ Город '" + city + "' сохранен в сессии");
 
                 // Предлагаем настроить уведомления
                 System.out.println("Хотите настроить ежедневные уведомления? (да/нет)");
@@ -144,7 +160,11 @@ public class Console implements IConsole, INotificationClient {
     }
 
     private void handleNotificationMenu() {
-        if (currentCity == null) {
+        // Получаем город из сессии
+        String city = sessionManager.getCurrentCity(CONSOLE_USER_ID)
+                .orElse(null);
+
+        if (city == null) {
             System.out.println("\n❌ Сначала выберите город для уведомлений");
             return;
         }
@@ -153,7 +173,7 @@ public class Console implements IConsole, INotificationClient {
             System.out.println("\n" + "=".repeat(50));
             System.out.println("🔔 УПРАВЛЕНИЕ УВЕДОМЛЕНИЯМИ");
             System.out.println("=".repeat(50));
-            System.out.println("Город: " + currentCity);
+            System.out.println("Город: " + city);
             System.out.println("Текущие настройки: " + getNotificationStatus());
             System.out.println("=".repeat(50));
             System.out.println("1 - Установить/изменить время уведомления");
@@ -167,7 +187,7 @@ public class Console implements IConsole, INotificationClient {
 
             switch (choice) {
                 case "1":
-                    setNotificationTime();
+                    setNotificationTime(city);
                     break;
                 case "2":
                     showNotificationInfo();
@@ -187,7 +207,7 @@ public class Console implements IConsole, INotificationClient {
         }
     }
 
-    private void setNotificationTime() {
+    private void setNotificationTime(String city) {
         System.out.print("\n⏰ Введите время для уведомления (формат HH:MM): ");
         String timeInput = scanner.nextLine().trim();
 
@@ -198,14 +218,14 @@ public class Console implements IConsole, INotificationClient {
 
         try {
             // Настраиваем уведомление через NotificationService
-            String result = notificationService.setNotification(CONSOLE_USER_ID, currentCity, timeInput);
+            String result = notificationService.setNotification(CONSOLE_USER_ID, city, timeInput);
             System.out.println("\n" + result);
 
             // Очищаем историю отправленных уведомлений
             notificationScheduler.clearNotificationHistory(CONSOLE_USER_ID);
 
             System.out.println("\n✅ Уведомления настроены!");
-            System.out.println("Город: " + currentCity);
+            System.out.println("Город: " + city);
             System.out.println("Время: " + timeInput);
             System.out.println("Бот будет присылать погоду ежедневно в это время.");
 
@@ -217,6 +237,14 @@ public class Console implements IConsole, INotificationClient {
     private void showNotificationInfo() {
         String info = notificationService.getNotificationInfo(CONSOLE_USER_ID);
         System.out.println("\n" + info);
+
+        // Показываем статистику сессии
+        if (sessionManager.isDatabaseAvailable()) {
+            System.out.println("\n📊 Статистика сессии:");
+            System.out.println("Город: " + sessionManager.getCurrentCity(CONSOLE_USER_ID).orElse("не выбран"));
+            System.out.println("Уведомления: " +
+                    (sessionManager.hasNotification(CONSOLE_USER_ID) ? "активны" : "отключены"));
+        }
     }
 
     private void cancelNotification() {
@@ -225,14 +253,13 @@ public class Console implements IConsole, INotificationClient {
 
         // Очищаем историю в планировщике
         notificationScheduler.clearNotificationHistory(CONSOLE_USER_ID);
-        currentCity = null; // Сбрасываем город
 
         System.out.println("✅ Все уведомления отключены");
     }
 
     private void testNotification() {
-        if (currentCity == null) {
-            System.out.println("❌ Сначала выберите город");
+        if (!sessionManager.hasNotification(CONSOLE_USER_ID)) {
+            System.out.println("❌ Сначала настройте уведомления");
             return;
         }
 
@@ -251,12 +278,12 @@ public class Console implements IConsole, INotificationClient {
     }
 
     private String getNotificationStatus() {
-        // Проверяем, есть ли активное уведомление
-        var notification = notificationService.getNotification(CONSOLE_USER_ID);
-        if (notification == null) {
-            return "отключены";
+        if (notificationService.hasNotification(CONSOLE_USER_ID)) {
+            return sessionManager.getNotificationTime(CONSOLE_USER_ID)
+                    .map(time -> "активны (" + time + ")")
+                    .orElse("активны (время не указано)");
         } else {
-            return "активны (" + notification.getTime() + ")";
+            return "отключены";
         }
     }
 
@@ -265,15 +292,15 @@ public class Console implements IConsole, INotificationClient {
     }
 
     // Геттеры для тестирования
-    public String getCurrentCity() {
-        return currentCity;
-    }
-
     public boolean isRunning() {
         return isRunning;
     }
 
     public NotificationService getNotificationService() {
         return notificationService;
+    }
+
+    public SessionManager getSessionManager() {
+        return sessionManager;
     }
 }
