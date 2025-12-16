@@ -413,7 +413,7 @@ public class TelegramBot extends TelegramLongPollingBot implements INotification
         return "друг";
     }
 
-    private void sendMessage(long chatId, String text, ReplyKeyboardMarkup keyboard) {
+    public void sendMessage(long chatId, String text, ReplyKeyboardMarkup keyboard) {
         // Проверяем активна ли сессия через SessionManager
         if (!sessionManager.isSessionActive(chatId)) {
             return;

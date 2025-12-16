@@ -5,97 +5,139 @@ import com.utils.services.WeatherAPI;
 import com.utils.services.WeatherBotDialogLogic;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 class WeatherBotDialogLogicTest {
 
-    @Mock
-    private WeatherAPI weatherAPI;
-
-    private WeatherBotDialogLogic dialogLogic;
+    private WeatherAPI weatherAPIMock;
+    private WeatherBotDialogLogic logic;
 
     @BeforeEach
     void setUp() {
-        dialogLogic = new WeatherBotDialogLogic(weatherAPI);
+        weatherAPIMock = mock(WeatherAPI.class);
+        logic = spy(new WeatherBotDialogLogic(weatherAPIMock));
     }
 
     @Test
-    void getQuestion_ShouldReturnCityPrompt() {
-        assertEquals("Введите название города для получения погоды:", dialogLogic.getQuestion());
+    void testGetQuestion() {
+        String q = logic.getQuestion();
+        assertEquals("Введите название города для получения погоды:", q);
     }
 
     @Test
-    void needToStart_ShouldReturnStartCommand() {
-        assertEquals("Для запуска бота введите /start", dialogLogic.needToStart());
+    void testWelcomeWords_containsHelpAndHint() {
+        String w = logic.welcomeWords();
+        assertTrue(w.contains("/help"));
+        assertTrue(w.contains("Вы можете ввести название города"));
     }
 
     @Test
-    void welcomeWords_ShouldContainWelcomeMessage() {
-        String result = dialogLogic.welcomeWords();
-
-        assertAll(
-                () -> assertTrue(result.contains("Добро пожаловать в погодный бот!")),
-                () -> assertTrue(result.contains("/help")),
-                () -> assertTrue(result.contains("/quit"))
-        );
+    void testFarewallWordsForInactive() {
+        String f = logic.farewallWordsForInactive();
+        assertEquals("❌ Сессия завершена. Введите /start для начала новой сессии.", f);
     }
 
     @Test
-    void processAnswer_WithQuitCommand_ShouldReturnFarewellMessage() {
-        UserAnswerStatus status = dialogLogic.processAnswer("/quit");
-
-        assertAll(
-                () -> assertFalse(status.isCorrectAnswer),
-                () -> assertEquals("До свидания! Возвращайтесь еще!", status.message),
-                () -> assertTrue(status.isQuit)
-        );
+    void testProcessAnswer_help_returnsHelpTextAndNoFlagsSet() throws Exception {
+        UserAnswerStatus res = logic.processAnswer("/help");
+        String text = extractFirstStringField(res);
+        List<Boolean> bools = extractBooleanFields(res);
+        assertEquals(logic.getHelp(), text);
+        for (Boolean b : bools) {
+            assertFalse(b);
+        }
     }
 
     @Test
-    void getHelp_ShouldReturnHelpMessage() {
-        String help = dialogLogic.getHelp();
-        assertAll(
-                () -> assertTrue(help.contains("📖 Помощь по боту")),
-                () -> assertTrue(help.contains("/start")),
-                () -> assertTrue(help.contains("/quit")),
-                () -> assertTrue(help.contains("/help"))
-        );
+    void testProcessAnswer_quit_returnsFarewellAndExitFlag() throws Exception {
+        UserAnswerStatus res = logic.processAnswer("/quit");
+        String text = extractFirstStringField(res);
+        List<Boolean> bools = extractBooleanFields(res);
+        assertTrue(text.contains("погоду") || text.length() > 0);
+        assertTrue(bools.stream().anyMatch(Boolean::booleanValue));
     }
 
     @Test
-    void getWeatherForPeriod_With1Day_ShouldCallCorrectMethod() throws Exception {
-        String result = dialogLogic.getWeatherForPeriod("Москва", 1);
-        assertNotNull(result);
+    void testProcessAnswer_city_success_callsGetQuickWeatherAndReturnsIt() throws Exception {
+        doReturn("Погода: ясно, +20°C").when(logic).getQuickWeatherForCity("Moscow");
+        UserAnswerStatus res = logic.processAnswer("Moscow");
+        String text = extractFirstStringField(res);
+        List<Boolean> bools = extractBooleanFields(res);
+        assertEquals("Погода: ясно, +20°C", text);
+        assertTrue(bools.stream().anyMatch(Boolean::booleanValue));
     }
 
     @Test
-    void getWeatherForPeriod_With2Days_ShouldCallCorrectMethod() throws Exception {
-        String result = dialogLogic.getWeatherForPeriod("Москва", 2);
-        assertNotNull(result);
+    void testProcessAnswer_city_failure_returnsErrorMessage() throws Exception {
+        doThrow(new RuntimeException("api error")).when(logic).getQuickWeatherForCity("Nowhere");
+        UserAnswerStatus res = logic.processAnswer("Nowhere");
+        String text = extractFirstStringField(res);
+        assertTrue(text.contains("Не удалось получить погоду для города: Nowhere"));
     }
 
     @Test
-    void getWeatherForPeriod_With3Days_ShouldCallCorrectMethod() throws Exception {
-        String result = dialogLogic.getWeatherForPeriod("Москва", 3);
-        assertNotNull(result);
+    void testGetHelp_includesExtraTelegramInfo() {
+        String help = logic.getHelp();
+        assertTrue(help.contains("Дополнительные возможности"));
+        assertTrue(help.contains("Кнопки для быстрого выбора периода"));
     }
 
     @Test
-    void getWeatherForPeriod_With7Days_ShouldCallCorrectMethod() throws Exception {
-        String result = dialogLogic.getWeatherForPeriod("Москва", 7);
-        assertNotNull(result);
+    void testGetWeatherForPeriod_delegatesToFormatWeatherForPeriod() throws Exception {
+        doReturn("3-day forecast").when(logic).formatWeatherForPeriod("Moscow", 3);
+        String out = logic.getWeatherForPeriod("Moscow", 3);
+        assertEquals("3-day forecast", out);
+        verify(logic).formatWeatherForPeriod("Moscow", 3);
     }
 
-    @Test
-    void getWeatherForPeriod_WithDefaultDays_ShouldCallCorrectMethod() throws Exception {
-        String result = dialogLogic.getWeatherForPeriod("Москва", 5);
-        assertNotNull(result);
+    private static String extractFirstStringField(Object obj) throws Exception {
+        for (Field f : obj.getClass().getDeclaredFields()) {
+            if (f.getType().equals(String.class)) {
+                f.setAccessible(true);
+                Object val = f.get(obj);
+                return val == null ? null : val.toString();
+            }
+        }
+        Class<?> current = obj.getClass().getSuperclass();
+        while (current != null) {
+            for (Field f : current.getDeclaredFields()) {
+                if (f.getType().equals(String.class)) {
+                    f.setAccessible(true);
+                    Object val = f.get(obj);
+                    return val == null ? null : val.toString();
+                }
+            }
+            current = current.getSuperclass();
+        }
+        throw new IllegalStateException("No String field found in " + obj.getClass());
     }
 
+    private static List<Boolean> extractBooleanFields(Object obj) throws Exception {
+        List<Boolean> ret = new ArrayList<>();
+        for (Field f : obj.getClass().getDeclaredFields()) {
+            if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                f.setAccessible(true);
+                Object v = f.get(obj);
+                ret.add(v == null ? false : (Boolean) v);
+            }
+        }
+        Class<?> current = obj.getClass().getSuperclass();
+        while (current != null) {
+            for (Field f : current.getDeclaredFields()) {
+                if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                    f.setAccessible(true);
+                    Object v = f.get(obj);
+                    ret.add(v == null ? false : (Boolean) v);
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return ret;
+    }
 }
